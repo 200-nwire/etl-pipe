@@ -30,11 +30,22 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
    ```
 4. Trigger ingestion and transformations from Dagster UI or CLI:
    ```bash
-   dagster job execute -m dagster_project -j mongo_raw_ingestion
-   dagster job execute -m dagster_project -j xapi_raw_ingestion
-   dbt run --project-dir dbt --profiles-dir dbt
-   dbt test --project-dir dbt --profiles-dir dbt
-   ```
+  dagster job execute -m dagster_project -j mongo_raw_ingestion
+  dagster job execute -m dagster_project -j xapi_raw_ingestion
+  dbt run --project-dir dbt --profiles-dir dbt
+  dbt test --project-dir dbt --profiles-dir dbt
+  ```
+
+### MongoDB Atlas readiness
+
+- The dlt Mongo connector works with standard SRV connection hosts from Atlas. Set
+  `MONGO_HOST` to your Atlas cluster hostname (e.g. `cluster0.abcd123.mongodb.net`),
+  `MONGO_PORT=27017`, and include TLS/write concern flags via
+  `MONGO_PARAMETERS='?retryWrites=true&w=majority&tls=true'`. Provide username,
+  password, and database via `MONGO_USER`, `MONGO_PASSWORD`, and `MONGO_DATABASE`.
+- If you prefer a single SRV URL, define `MONGO_CONNECTION_STRING` in your
+  environment or `pipelines/mongo.py` dlt configuration; the Dagster asset will
+  pass it through to the connector unchanged.
 
 ### Local validation without BigQuery
 
