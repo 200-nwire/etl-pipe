@@ -12,6 +12,14 @@ from typing import Iterable, List
 import pytest
 
 pytest.importorskip("dagster")
+pytest.importorskip(
+    "dlt.sources.mongo",
+    reason="Install dlt mongo extra to run Dagster asset tests.",
+)
+pytest.importorskip(
+    "dlt.sources.rest_api",
+    reason="Install dlt rest_api extra to run Dagster asset tests.",
+)
 
 
 def test_ingestion_assets_materialize(monkeypatch):
