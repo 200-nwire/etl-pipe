@@ -8,7 +8,7 @@ analysis-paths: ["analysis"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
 data-paths: ["data"]
-depends_on: []
+seed-paths: ["data"]
 
 models:
   etl_silver:

@@ -59,7 +59,9 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
 
 ## CI/CD and deployment
 
-- GitHub Actions workflow (`ci.yml`) lints Python via Ruff, parses dbt models, and runs unit tests.
+- GitHub Actions workflow (`ci.yml`) lints Python via Ruff, parses dbt models, and runs unit tests (including the DuckDB
+  end-to-end suite) on every push and PR. No BigQuery credentials are required; dbt parse uses a throwaway service account
+  JSON (`GOOGLE_APPLICATION_CREDENTIALS=/tmp/fake.json`) plus `GCP_PROJECT`/`GCP_BQ_DATASET` placeholders.
 - Containerize with the provided Dockerfile for K8s or ECS. The container bundles Dagster webserver and dbt CLI.
 - Use Dagster's `dagster-cloud` or self-hosted `dagster-daemon` for scheduling and sensor-based ingestion in production.
 
