@@ -14,6 +14,7 @@ This repository uses three complementary layers of testing to cover Dagster orch
 - `tests/test_duckdb_e2e.py` uses the real dlt loaders for MongoDB and xAPI but swaps the destination to **DuckDB**. This exercises extract/transform/load logic and dbt schemas without provisioning BigQuery or live data.
 - The sample fixtures mimic production payloads and run through dbt models via DuckDB-backed sources so seed/schema tests can execute in CI.
 - This approach is a widely recommended compromise for data platform repos: use production-like logic with a local/ephemeral destination instead of heavy mocks.
+- To run these tests rather than skip them, install the full dev extras (`pip install .[dev]`) which include dlt's DuckDB/Mongo extras and the DuckDB engine itself; otherwise pytest will emit a clear skip reason.
 
 ## CI considerations
 - The GitHub Actions workflow invokes Ruff, `compileall`, the DuckDB E2E tests, and `dbt parse`. No BigQuery credentials are required; parse uses placeholder env vars and a temporary JSON key at `/tmp/fake.json`.

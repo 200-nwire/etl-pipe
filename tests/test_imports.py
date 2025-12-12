@@ -2,8 +2,14 @@ import importlib
 
 import pytest
 
-pytest.importorskip("dlt")
-pytest.importorskip("dlt.sources.mongo")
+pytest.importorskip(
+    "dlt",
+    reason="Install project dev extras (pip install .[dev]) to load the dlt pipelines.",
+)
+pytest.importorskip(
+    "dlt.sources.mongo",
+    reason="Install dlt Mongo extra (pip install 'dlt[mongo]') to import Mongo pipeline helpers.",
+)
 
 
 def test_dagster_project_imports():

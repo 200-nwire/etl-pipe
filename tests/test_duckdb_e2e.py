@@ -7,9 +7,18 @@ from typing import Iterable
 
 import pytest
 
-pytest.importorskip("dlt")
-pytest.importorskip("dlt.sources.mongo")
-pytest.importorskip("duckdb")
+pytest.importorskip(
+    "dlt",
+    reason="Install project dev extras (pip install .[dev]) to exercise DuckDB ingestion.",
+)
+pytest.importorskip(
+    "dlt.sources.mongo",
+    reason="Install dlt Mongo extra (pip install 'dlt[mongo]') for end-to-end ingestion tests.",
+)
+pytest.importorskip(
+    "duckdb",
+    reason="Install DuckDB dev dependency (pip install .[dev]) to run local/CI DuckDB targets.",
+)
 
 import dlt
 import duckdb
