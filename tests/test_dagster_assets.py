@@ -11,15 +11,15 @@ from typing import Iterable, List
 
 import pytest
 
-dagster = pytest.importorskip("dagster")
-from dagster import ResourceDefinition, materialize_to_memory, with_resources
-
-from dagster_project.assets.ingestion import mongo_raw_asset, xapi_raw_asset
-from dagster_project.assets.validation import dbt_test_asset
+pytest.importorskip("dagster")
 
 
 def test_ingestion_assets_materialize(monkeypatch):
     """Ingestion assets run end-to-end with in-memory outputs."""
+
+    from dagster import ResourceDefinition, materialize_to_memory, with_resources
+
+    from dagster_project.assets.ingestion import mongo_raw_asset, xapi_raw_asset
 
     mongo_tables: List[str] = ["raw.users", "raw.orders"]
     xapi_table = "raw.xapi_statements"
@@ -69,6 +69,10 @@ class _FakeDbtResource:
 
 def test_dbt_test_asset_passes_with_fake_resource():
     """dbt_test_asset surfaces pass/fail information from the dbt resource."""
+
+    from dagster import materialize_to_memory, with_resources
+
+    from dagster_project.assets.validation import dbt_test_asset
 
     results = [_FakeDbtResult(unique_id="model.etl_silver.users"), _FakeDbtResult("test.pk")] 
 
