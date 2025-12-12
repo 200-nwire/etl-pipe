@@ -8,7 +8,6 @@ from typing import Dict, Iterable
 import dlt
 import requests
 
-
 XAPI_PAGE_SIZE = 500
 
 

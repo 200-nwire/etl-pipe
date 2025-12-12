@@ -1,6 +1,6 @@
 """Dagster assets that orchestrate dlt-based ingestion pipelines."""
 
-from dagster import AssetExecutionContext, AssetKey, MetadataValue, Output, asset
+from dagster import AssetExecutionContext, MetadataValue, Output, asset
 
 from pipelines.mongo import load_mongo_raw
 from pipelines.xapi import load_xapi_raw

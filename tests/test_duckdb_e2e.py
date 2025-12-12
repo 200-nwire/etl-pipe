@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
-import duckdb
 import dlt
+import duckdb
 
 from pipelines.mongo import load_mongo_raw
 from pipelines.xapi import load_xapi_raw
@@ -67,8 +67,16 @@ def test_xapi_roundtrip_in_duckdb(tmp_path: Path) -> None:
     """Validate xAPI ingestion using a provided fetcher without hitting the network."""
 
     sample_statements: Iterable[dict] = [
-        {"id": "stmt-1", "actor": {"mbox": "mailto:user@example.com"}, "verb": {"id": "completed"}},
-        {"id": "stmt-2", "actor": {"mbox": "mailto:user@example.com"}, "verb": {"id": "initialized"}},
+        {
+            "id": "stmt-1",
+            "actor": {"mbox": "mailto:user@example.com"},
+            "verb": {"id": "completed"},
+        },
+        {
+            "id": "stmt-2",
+            "actor": {"mbox": "mailto:user@example.com"},
+            "verb": {"id": "initialized"},
+        },
     ]
 
     load_xapi_raw(

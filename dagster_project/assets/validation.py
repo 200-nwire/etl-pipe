@@ -1,7 +1,6 @@
 """Validation assets to ensure data quality after transformations."""
 
 from dagster import AssetKey, AssetObservation, MetadataValue, Output, asset
-from dagster_dbt import get_dbt_resource_props
 
 
 @asset(

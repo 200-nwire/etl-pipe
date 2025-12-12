@@ -5,7 +5,6 @@ from typing import List, Optional
 import dlt
 from dlt.sources.mongo import mongo
 
-
 DEFAULT_MONGO_COLLECTIONS = [
     "dim_organization",
     "dim_learner",
