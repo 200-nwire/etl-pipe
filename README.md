@@ -9,6 +9,7 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
 - `dbt/` – dbt project implementing raw sources, staging views, and silver models aligned to the provided schema.
 - `.github/workflows/ci.yml` – CI pipeline for linting, Dagster asset checks, and dbt parsing/testing.
 - `docs/` – architecture, lineage, and operational documentation.
+ - `docs/` – architecture, lineage, operational guidance, and testing strategy.
 
 ## Quickstart
 
@@ -56,6 +57,8 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
   ```bash
   pytest tests/test_duckdb_e2e.py
   ```
+
+For more on the testing approach (Dagster unit patterns, DuckDB E2E design, and CI setup), see `docs/testing.md`.
 
 ## CI/CD and deployment
 
