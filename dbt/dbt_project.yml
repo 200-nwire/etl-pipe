@@ -7,7 +7,6 @@ model-paths: ["models"]
 analysis-paths: ["analysis"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
-data-paths: ["data"]
 seed-paths: ["data"]
 
 models:
