@@ -29,30 +29,37 @@ from pipelines.xapi import load_xapi_raw
 
 @dlt.source(name="mock_mongo")
 def mock_mongo_source():
-    @dlt.resource(name="dim_organization")
-    def dim_organization():
-        yield {"organization_id": "org-1", "name": "Demo Org", "timezone": "UTC"}
-
-    @dlt.resource(name="dim_course")
-    def dim_course():
+    @dlt.resource(name="users")
+    def users():
         yield {
-            "course_id": "course-1",
-            "organization_id": "org-1",
-            "code": "ALG-1",
-            "name": "Algebra I",
+            "_id": "user-1",
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "role": "student",
+            "grade": "10",
+            "coins": 42,
         }
 
-    @dlt.resource(name="fact_learning_event")
-    def fact_learning_event():
+    @dlt.resource(name="courses")
+    def courses():
         yield {
-            "event_id": "evt-1",
-            "time_id": 1,
-            "event_timestamp": "2024-01-01T00:00:00Z",
-            "organization_id": "org-1",
-            "course_id": "course-1",
+            "_id": "course-1",
+            "title": "Algorithms",
+            "grade": "10",
+            "skills": [],
         }
 
-    return dim_organization, dim_course, fact_learning_event
+    @dlt.resource(name="enrollments")
+    def enrollments():
+        yield {
+            "_id": "enroll-1",
+            "student": "user-1",
+            "course": "course-1",
+            "status": "started",
+            "total_lessons": 1,
+        }
+
+    return users, courses, enrollments
 
 
 def _duckdb_pipeline_kwargs(temp_dir: Path, db_name: str) -> dict:
@@ -66,7 +73,7 @@ def test_mongo_roundtrip_in_duckdb(tmp_path: Path) -> None:
     """Ensure Mongo ingestion can target DuckDB for local/CI execution."""
 
     load_mongo_raw(
-        collections=["dim_organization", "dim_course", "fact_learning_event"],
+        collections=["users", "courses", "enrollments"],
         destination="duckdb",
         dataset_name="raw",
         pipeline_kwargs=_duckdb_pipeline_kwargs(tmp_path, "mongo.db"),
@@ -74,8 +81,8 @@ def test_mongo_roundtrip_in_duckdb(tmp_path: Path) -> None:
     )
 
     conn = duckdb.connect(str(tmp_path / "mongo.db"))
-    assert conn.execute("select count(*) from raw.dim_organization").fetchone()[0] == 1
-    assert conn.execute("select count(*) from raw.fact_learning_event").fetchone()[0] == 1
+    assert conn.execute("select count(*) from raw.users").fetchone()[0] == 1
+    assert conn.execute("select count(*) from raw.enrollments").fetchone()[0] == 1
 
 
 def test_xapi_roundtrip_in_duckdb(tmp_path: Path) -> None:
