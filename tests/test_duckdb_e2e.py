@@ -5,6 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+import pytest
+
+pytest.importorskip("dlt")
+pytest.importorskip("dlt.sources.mongo")
+pytest.importorskip("duckdb")
+
 import dlt
 import duckdb
 

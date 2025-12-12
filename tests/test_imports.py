@@ -1,5 +1,10 @@
 import importlib
 
+import pytest
+
+pytest.importorskip("dlt")
+pytest.importorskip("dlt.sources.mongo")
+
 
 def test_dagster_project_imports():
     assert importlib.import_module("dagster_project")
