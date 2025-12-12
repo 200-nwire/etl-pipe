@@ -38,19 +38,26 @@ def _fetch_xapi_statements() -> Iterable[Dict]:
             more = False
 
 
-def load_xapi_raw() -> str:
+def load_xapi_raw(
+    *,
+    destination: str = "bigquery",
+    dataset_name: str = "raw",
+    pipeline_kwargs: Dict | None = None,
+    fetcher: Iterable[Dict] | None = None,
+) -> str:
     """Load xAPI statements into the raw dataset using dlt."""
 
     pipeline = dlt.pipeline(
         pipeline_name="xapi_raw",
-        destination="bigquery",
-        dataset_name="raw",
+        destination=destination,
+        dataset_name=dataset_name,
         full_refresh=False,
+        **(pipeline_kwargs or {}),
     )
 
     @dlt.resource(name="xapi_statements")
     def xapi_resource():
-        yield from _fetch_xapi_statements()
+        yield from fetcher if fetcher is not None else _fetch_xapi_statements()
 
-    load_info = pipeline.run(xapi_resource())
-    return load_info.default_schema_name
+    pipeline.run(xapi_resource())
+    return dataset_name

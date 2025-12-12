@@ -36,6 +36,16 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
    dbt test --project-dir dbt --profiles-dir dbt
    ```
 
+### Local validation without BigQuery
+
+- The dlt pipelines accept a `destination="duckdb"` override so you can run integration tests
+  without provisioning BigQuery.
+- A pytest suite (`tests/test_duckdb_e2e.py`) exercises Mongo and xAPI ingestion end-to-end
+  into DuckDB. Run it locally or in CI with:
+  ```bash
+  pytest tests/test_duckdb_e2e.py
+  ```
+
 ## CI/CD and deployment
 
 - GitHub Actions workflow (`ci.yml`) lints Python via Ruff, parses dbt models, and runs unit tests.
