@@ -1,0 +1,24 @@
+name: "etl_silver"
+version: "1.0"
+config-version: 2
+profile: "etl_silver"
+
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+data-paths: ["data"]
+depends_on: []
+
+models:
+  etl_silver:
+    +materialized: view
+    staging:
+      +schema: staging
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: table
+
+seeds:
+  +schema: seeds

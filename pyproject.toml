@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "etl-pipe"
+version = "0.1.0"
+description = "Dagster + dlt + dbt stack for MongoDB and xAPI to BigQuery silver models"
+authors = [{name = "Data Eng Team"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "dagster==1.7.9",
+  "dagster-webserver==1.7.9",
+  "dagster-dbt==0.23.9",
+  "dlt[bigquery,mongo]==0.4.6",
+  "dbt-bigquery==1.8.2",
+  "pymongo==4.6.3",
+  "python-dotenv>=1.0",
+  "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "ruff>=0.4.4",
+]
+
+[tool.setuptools]
+packages = ["dagster_project", "pipelines"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]

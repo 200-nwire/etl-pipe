@@ -1,0 +1,118 @@
+version: 2
+
+models:
+  - name: dim_time
+    description: "Time dimension for calendar and time-of-day slicing."
+    columns:
+      - name: time_id
+        tests: [unique, not_null]
+  - name: dim_organization
+    description: "Organization dimension representing districts, schools and other institutions."
+    columns:
+      - name: organization_id
+        tests: [unique, not_null]
+  - name: dim_learner
+    description: "Learner dimension – long-term learner attributes and identifiers."
+    columns:
+      - name: learner_id
+        tests: [unique, not_null]
+  - name: dim_teacher
+    description: "Teacher dimension – educator identifiers."
+    columns:
+      - name: teacher_id
+        tests: [unique, not_null]
+  - name: dim_course
+    description: "Course dimension – logical courses/classes over which sections and content are organized."
+    columns:
+      - name: course_id
+        tests: [unique, not_null]
+  - name: dim_section
+    description: "Section/class dimension – concrete teaching groups."
+    columns:
+      - name: section_id
+        tests: [unique, not_null]
+  - name: dim_content_item
+    description: "Content item dimension – questions, activities, readings and other instruction units."
+    columns:
+      - name: content_id
+        tests: [unique, not_null]
+  - name: dim_assessment
+    description: "Assessment dimension – logical collections of items used to measure performance."
+    columns:
+      - name: assessment_id
+        tests: [unique, not_null]
+  - name: dim_skill
+    description: "Skill dimension – structured competency graph."
+    columns:
+      - name: skill_id
+        tests: [unique, not_null]
+  - name: dim_session
+    description: "Session dimension – windows of learner interaction."
+    columns:
+      - name: session_id
+        tests: [unique, not_null]
+  - name: dim_platform
+    description: "Platform dimension – LMSes, apps, and services that send telemetry."
+    columns:
+      - name: platform_id
+        tests: [unique, not_null]
+  - name: dim_lti_tool
+    description: "LTI tool dimension – distinct LTI integrations."
+    columns:
+      - name: lti_tool_id
+        tests: [unique, not_null]
+  - name: dim_ai_tool
+    description: "AI tool dimension – assistant/bot configurations."
+    columns:
+      - name: ai_tool_id
+        tests: [unique, not_null]
+  - name: ref_event_type
+    description: "Reference table for coarse event buckets."
+    columns:
+      - name: event_type_key
+        tests: [unique, not_null]
+  - name: ref_verb
+    description: "Reference table mapping raw statement verbs to a normalized vocabulary."
+    columns:
+      - name: verb_id
+        tests: [unique, not_null]
+  - name: ref_signal_type
+    description: "Reference table for learning signal types."
+    columns:
+      - name: signal_type_key
+        tests: [unique, not_null]
+  - name: fact_learning_event
+    description: "Atomic event fact table – each row represents a single learner/content/platform event."
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+  - name: fact_assessment_attempt
+    description: "Assessment attempt fact – per learner per assessment execution."
+    columns:
+      - name: assessment_attempt_id
+        tests: [unique, not_null]
+  - name: fact_learning_signal
+    description: "Learning signal fact – computed analytics like mastery or risk."
+    columns:
+      - name: learning_signal_id
+        tests: [unique, not_null]
+  - name: fact_variant_exposure
+    description: "Variant exposure fact – connects learners to specific experiment variants."
+    columns:
+      - name: variant_exposure_id
+        tests: [unique, not_null]
+  - name: fact_ai_interaction
+    description: "AI interaction fact – telemetry for AI experiences."
+    columns:
+      - name: ai_interaction_id
+        tests: [unique, not_null]
+  - name: fact_session_summary
+    description: "Session summary fact – aggregated metrics over a learning session."
+    columns:
+      - name: session_summary_id
+        tests: [unique, not_null]
+  - name: fact_lti_launch
+    description: "LTI launch fact – one row per LTI launch linking platform, tool, course, section and user."
+    columns:
+      - name: lti_launch_id
+        tests: [unique, not_null]
