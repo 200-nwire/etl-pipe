@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DBT_TARGET: duckdb
+      DUCKDB_DATABASE: /tmp/ci_duckdb.db
+      DBT_DUCKDB_SCHEMA: raw
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python

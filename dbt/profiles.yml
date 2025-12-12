@@ -10,3 +10,8 @@ etl_silver:
       keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
       timeout_seconds: 300
       location: US
+    duckdb:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_DATABASE', '/tmp/duckdb.db') }}"
+      schema: "{{ env_var('DBT_DUCKDB_SCHEMA', 'raw') }}"
+      threads: 4
