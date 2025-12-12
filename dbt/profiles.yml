@@ -1,0 +1,12 @@
+etl_silver:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT') }}"
+      dataset: "{{ env_var('GCP_BQ_DATASET', 'raw') }}"
+      threads: 8
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      timeout_seconds: 300
+      location: US

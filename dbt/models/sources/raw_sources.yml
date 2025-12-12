@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: raw_mongo
+    description: "Raw MongoDB collections ingested via Airbyte and dlt"
+    schema: raw
+    tables:
+      - name: dim_time
+      - name: dim_organization
+      - name: dim_learner
+      - name: dim_teacher
+      - name: dim_course
+      - name: dim_section
+      - name: dim_content_item
+      - name: dim_assessment
+      - name: dim_skill
+      - name: dim_session
+      - name: dim_platform
+      - name: dim_lti_tool
+      - name: dim_ai_tool
+      - name: ref_event_type
+      - name: ref_verb
+      - name: ref_signal_type
+      - name: fact_learning_event
+      - name: fact_assessment_attempt
+      - name: fact_learning_signal
+      - name: fact_variant_exposure
+      - name: fact_ai_interaction
+      - name: fact_session_summary
+      - name: fact_lti_launch
+
+  - name: raw_xapi
+    description: "Raw xAPI statements ingested via dlt"
+    schema: raw
+    tables:
+      - name: xapi_statements

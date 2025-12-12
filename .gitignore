@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+.envrc
+.mypy_cache/
+.pytest_cache/
+.dbt/
+target/
+logs/
+.DS_Store
+.idea/
+.vscode/
+.eggs/
+.eggs-info/
+*.egg-info/
+.venv/

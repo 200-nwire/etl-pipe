@@ -1,0 +1,31 @@
+{{ config(materialized='table') }}
+
+select
+  cast(event_id as string) as event_id,
+  cast(source_system as string) as source_system,
+  cast(source_event_key as string) as source_event_key,
+  cast(time_id as int) as time_id,
+  cast(event_timestamp as timestamp) as event_timestamp,
+  cast(event_type_key as string) as event_type_key,
+  cast(verb_id as int) as verb_id,
+  cast(learner_id as string) as learner_id,
+  cast(teacher_id as string) as teacher_id,
+  cast(session_id as string) as session_id,
+  cast(organization_id as string) as organization_id,
+  cast(course_id as string) as course_id,
+  cast(section_id as string) as section_id,
+  cast(content_id as string) as content_id,
+  cast(assessment_id as string) as assessment_id,
+  cast(skill_id as string) as skill_id,
+  cast(platform_id as string) as platform_id,
+  cast(lti_tool_id as string) as lti_tool_id,
+  cast(ai_tool_id as string) as ai_tool_id,
+  cast(is_correct as bool) as is_correct,
+  cast(score_raw as float64) as score_raw,
+  cast(score_scaled as float64) as score_scaled,
+  response,
+  cast(latency_ms as int64) as latency_ms,
+  cast(attempt_number as int) as attempt_number,
+  event_source,
+  metadata
+from {{ source('raw_mongo', 'fact_learning_event') }}
