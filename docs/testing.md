@@ -17,7 +17,7 @@ This repository uses three complementary layers of testing to cover Dagster orch
 - To run these tests rather than skip them, install the full dev extras (`pip install .[dev]`) which include dlt's DuckDB/Mongo extras and the DuckDB engine itself; otherwise pytest will emit a clear skip reason.
 
 ## CI considerations
-- The GitHub Actions workflow invokes Ruff, `compileall`, the DuckDB E2E tests, and `dbt parse`. No BigQuery credentials are required; parse uses placeholder env vars and a temporary JSON key at `/tmp/fake.json`.
+- The GitHub Actions workflow invokes Ruff, `compileall`, `dbt parse`, `dbt build` (targeting DuckDB), and the Python test suite (including Dagster asset tests and DuckDB end-to-end checks). No BigQuery credentials are required; parse uses placeholder env vars and a temporary JSON key at `/tmp/fake.json`.
 - To run Dagster-involved tests in CI, set `DAGSTER_HOME` to a temp directory and prefer in-memory materializations with patched loaders to keep runs hermetic.
 
 ## Local developer workflow

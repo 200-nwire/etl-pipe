@@ -19,7 +19,7 @@ from pipelines.xapi import load_xapi_raw
 def mongo_raw_asset(context: AssetExecutionContext) -> Output[str]:
     table_names = load_mongo_raw()
     return Output(
-        value=" ,".join(table_names),
+        value=", ".join(table_names),
         metadata={
             "raw_tables": MetadataValue.json(table_names),
             "lineage": MetadataValue.md(
