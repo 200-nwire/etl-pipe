@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -17,8 +16,6 @@ pytest.importorskip(
     "duckdb",
     reason="Install DuckDB dev dependency (pip install .[dev]) to run local/CI DuckDB targets.",
 )
-
-import duckdb
 
 from prepare_duckdb_raw import create_empty_raw_tables, raw_columns_by_table
 
