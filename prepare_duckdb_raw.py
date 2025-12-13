@@ -17,14 +17,8 @@ def _extract_columns(sql_path: Path) -> Set[str]:
     columns: Set[str] = set()
     pattern = re.compile(r"as\s+([a-zA-Z0-9_]+)", re.IGNORECASE)
     for raw_line in sql_path.read_text().splitlines():
-        line = raw_line.strip().rstrip(",")
-        if (
-            not line
-            or line.lower().startswith("select")
-            or line.lower().startswith("from")
-            or "{{" in line
-            or "}}" in line
-        ):
+        line = re.sub(r"{{.*?}}", "", raw_line).strip().rstrip(",")
+        if not line or line.lower().startswith("select") or line.lower().startswith("from"):
             continue
         matches = pattern.findall(line)
         if matches:
