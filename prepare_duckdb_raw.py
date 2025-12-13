@@ -15,7 +15,7 @@ import duckdb
 
 def _extract_columns(sql_path: Path) -> Set[str]:
     columns: Set[str] = set()
-    pattern = re.compile(r"as\s+([a-zA-Z0-9_]+)")
+    pattern = re.compile(r"as\s+([a-zA-Z0-9_]+)", re.IGNORECASE)
     for raw_line in sql_path.read_text().splitlines():
         line = raw_line.strip().rstrip(",")
         if (
@@ -26,9 +26,9 @@ def _extract_columns(sql_path: Path) -> Set[str]:
             or "}}" in line
         ):
             continue
-        match = pattern.search(line)
-        if match:
-            columns.add(match.group(1))
+        matches = pattern.findall(line)
+        if matches:
+            columns.add(matches[-1])
         else:
             cleaned = line.split()[0]
             if cleaned not in {"from", "where"}:
