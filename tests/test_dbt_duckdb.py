@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+
+pyproject_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(pyproject_root))
 
 pytest.importorskip(
     "dbt.adapters.duckdb",
@@ -17,7 +23,12 @@ pytest.importorskip(
     reason="Install DuckDB dev dependency (pip install .[dev]) to run local/CI DuckDB targets.",
 )
 
-from prepare_duckdb_raw import create_empty_raw_tables, raw_columns_by_table
+if importlib.util.find_spec("prepare_duckdb_raw") is None:
+    pytest.skip("prepare_duckdb_raw helper is not importable in this environment.")
+
+prepare_duckdb_raw = importlib.import_module("prepare_duckdb_raw")
+create_empty_raw_tables = prepare_duckdb_raw.create_empty_raw_tables
+raw_columns_by_table = prepare_duckdb_raw.raw_columns_by_table
 
 
 @pytest.mark.integration
