@@ -11,7 +11,7 @@ select
   cast(interaction_type as string) as interaction_type,
   cast(title as string) as title,
   description,
-  cast(difficulty_estimate as float64) as difficulty_estimate,
+  cast(difficulty_estimate as {{ float_type() }}) as difficulty_estimate,
   cast(primary_skill_id as string) as primary_skill_id,
   metadata,
   cast(created_at as timestamp) as created_at,

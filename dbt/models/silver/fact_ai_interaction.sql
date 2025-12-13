@@ -17,7 +17,7 @@ select
   cast(input_tokens as int64) as input_tokens,
   cast(output_tokens as int64) as output_tokens,
   cast(latency_ms as int64) as latency_ms,
-  cast(feedback_rating as float64) as feedback_rating,
+  cast(feedback_rating as {{ float_type() }}) as feedback_rating,
   cast(feedback_label as string) as feedback_label,
   transcript_snippet,
   metadata

@@ -10,8 +10,8 @@ select
   cast(title as string) as title,
   description,
   cast(assessment_type as string) as assessment_type,
-  cast(max_score as float64) as max_score,
-  cast(passing_score as float64) as passing_score,
+  cast(max_score as {{ float_type() }}) as max_score,
+  cast(passing_score as {{ float_type() }}) as passing_score,
   metadata,
   cast(created_at as timestamp) as created_at,
   cast(updated_at as timestamp) as updated_at

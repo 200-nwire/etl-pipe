@@ -12,7 +12,7 @@ select
   cast(skill_id as string) as skill_id,
   cast(content_id as string) as content_id,
   cast(session_id as string) as session_id,
-  cast(signal_value as float64) as signal_value,
+  cast(signal_value as {{ float_type() }}) as signal_value,
   value_explanation,
   cast(window_start as timestamp) as window_start,
   cast(window_end as timestamp) as window_end,
