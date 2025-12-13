@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: raw_mongo
     description: "Raw MongoDB collections ingested via Airbyte and dlt"
-    schema: raw
+    schema: "{{ env_var('DBT_RAW_SCHEMA', env_var('DBT_DUCKDB_SCHEMA', 'raw')) }}"
     tables:
       - name: dim_time
       - name: dim_organization
@@ -31,6 +31,6 @@ sources:
 
   - name: raw_xapi
     description: "Raw xAPI statements ingested via dlt"
-    schema: raw
+    schema: "{{ env_var('DBT_RAW_SCHEMA', env_var('DBT_DUCKDB_SCHEMA', 'raw')) }}"
     tables:
       - name: xapi_statements

@@ -11,7 +11,8 @@ jobs:
     env:
       DBT_TARGET: duckdb
       DUCKDB_DATABASE: /tmp/ci_duckdb.db
-      DBT_DUCKDB_SCHEMA: raw
+      DBT_DUCKDB_SCHEMA: raw_mongo
+      DBT_RAW_SCHEMA: raw_mongo
       DAGSTER_HOME: /tmp/dagster
     steps:
       - uses: actions/checkout@v4

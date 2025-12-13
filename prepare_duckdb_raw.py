@@ -48,10 +48,11 @@ def raw_columns_by_table(models_dir: Path) -> Dict[str, Set[str]]:
 def create_empty_raw_tables(db_path: Path, columns_by_table: Dict[str, Iterable[str]]) -> None:
     conn = duckdb.connect(str(db_path))
     # Align with dbt source schema used by silver models.
-    conn.execute("create schema if not exists raw_mongo")
+    schema = os.environ.get("DBT_DUCKDB_SCHEMA") or os.environ.get("DBT_RAW_SCHEMA") or "raw"
+    conn.execute(f"create schema if not exists {schema}")
     for table, columns in columns_by_table.items():
         column_defs = ", ".join(f"{col} varchar" for col in sorted(columns)) or "dummy varchar"
-        conn.execute(f"create or replace table raw_mongo.{table} ({column_defs})")
+        conn.execute(f"create or replace table {schema}.{table} ({column_defs})")
     conn.close()
 
 

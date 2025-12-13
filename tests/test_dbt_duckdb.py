@@ -34,6 +34,8 @@ def test_dbt_build_against_duckdb(tmp_path: Path) -> None:
             "DBT_PROFILES_DIR": str(Path("dbt").resolve()),
             "DBT_TARGET": "duckdb",
             "DUCKDB_DATABASE": str(db_path),
+            "DBT_DUCKDB_SCHEMA": "raw_mongo",
+            "DBT_RAW_SCHEMA": "raw_mongo",
         }
     )
 
