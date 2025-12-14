@@ -13,7 +13,7 @@ dependencies = [
   "dagster==1.7.9",
   "dagster-webserver==1.7.9",
   "dagster-dbt==0.23.9",
-  "dlt[bigquery,mongo]==0.4.6",
+  "dlt[bigquery,pymongo]==0.4.6",
   "dbt-bigquery==1.8.2",
   "pymongo==4.6.3",
   "python-dotenv>=1.0",
@@ -24,7 +24,8 @@ dependencies = [
 dev = [
   "pytest>=7.4",
   "ruff>=0.4.4",
-  "dlt[duckdb]==0.4.6",
+  "duckdb>=1.0.0",
+  "dbt-duckdb==1.8.2",
 ]
 
 [tool.setuptools]
