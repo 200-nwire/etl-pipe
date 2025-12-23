@@ -254,15 +254,62 @@ def create_lms_pipeline(
         location = os.environ.get("BQ_LOCATION", "me-west1")
     
     # Configure BigQuery destination with credentials
-    # dlt requires explicit credentials, not just GOOGLE_APPLICATION_CREDENTIALS env var
-    from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
+    # dlt reads credentials from .dlt/secrets.toml or environment variables
+    # We create/update secrets.toml from the JSON file to ensure credentials are available
+    # when dlt recreates destination clients during pipeline.load()
     import json
+    from pathlib import Path
+    
     creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
     if os.path.exists(creds_path):
         # Load credentials from JSON file
         with open(creds_path, 'r') as f:
             creds_data = json.load(f)
-        # Extract only the fields needed by GcpServiceAccountCredentials
+        
+        # Create/update .dlt/secrets.toml from JSON file
+        # This ensures dlt can read credentials when recreating destination clients
+        dlt_secrets_dir = Path(__file__).parent.parent.parent.parent / ".dlt"
+        dlt_secrets_dir.mkdir(exist_ok=True)
+        secrets_file = dlt_secrets_dir / "secrets.toml"
+        
+        # Write secrets.toml with credentials from JSON
+        # Escape private key for TOML (escape quotes)
+        private_key_escaped = creds_data.get("private_key", "").replace('"', '\\"')
+        project_id = creds_data.get("project_id", "")
+        client_email = creds_data.get("client_email", "")
+        pipeline_name_lower = "lms_raw"  # Pipeline name for LMS
+        
+        # dlt looks for credentials in multiple places:
+        # 1. Pipeline-specific: lms_raw.destination.bigquery.credentials.*
+        # 2. Generic: destination.bigquery.credentials.*
+        # We include both to ensure credentials are found
+        secrets_content = f'''# dlt secrets configuration
+# Auto-generated from GOOGLE_APPLICATION_CREDENTIALS JSON file
+# This file is updated dynamically to ensure credentials are available
+# when dlt recreates destination clients during pipeline.load()
+
+# Generic destination configuration (used as fallback)
+[destination.bigquery]
+location = "{location}"
+
+[destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+
+# Pipeline-specific configuration ({pipeline_name_lower} pipeline)
+[{pipeline_name_lower}.destination.bigquery]
+location = "{location}"
+
+[{pipeline_name_lower}.destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+'''
+        secrets_file.write_text(secrets_content)
+        
+        # Create credentials object for direct use (for initial destination creation)
+        from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
         credentials = GcpServiceAccountCredentials(
             project_id=creds_data.get("project_id"),
             private_key=creds_data.get("private_key"),
@@ -317,15 +364,62 @@ def create_lrs_pipeline(
         location = os.environ.get("BQ_LOCATION", "me-west1")
     
     # Configure BigQuery destination with credentials
-    # dlt requires explicit credentials, not just GOOGLE_APPLICATION_CREDENTIALS env var
-    from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
+    # dlt reads credentials from .dlt/secrets.toml or environment variables
+    # We create/update secrets.toml from the JSON file to ensure credentials are available
+    # when dlt recreates destination clients during pipeline.load()
     import json
+    from pathlib import Path
+    
     creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
     if os.path.exists(creds_path):
         # Load credentials from JSON file
         with open(creds_path, 'r') as f:
             creds_data = json.load(f)
-        # Extract only the fields needed by GcpServiceAccountCredentials
+        
+        # Create/update .dlt/secrets.toml from JSON file
+        # This ensures dlt can read credentials when recreating destination clients
+        dlt_secrets_dir = Path(__file__).parent.parent.parent.parent / ".dlt"
+        dlt_secrets_dir.mkdir(exist_ok=True)
+        secrets_file = dlt_secrets_dir / "secrets.toml"
+        
+        # Write secrets.toml with credentials from JSON
+        # Escape private key for TOML (escape quotes)
+        private_key_escaped = creds_data.get("private_key", "").replace('"', '\\"')
+        project_id = creds_data.get("project_id", "")
+        client_email = creds_data.get("client_email", "")
+        pipeline_name_lower = "lrs_raw"  # Pipeline name for LRS
+        
+        # dlt looks for credentials in multiple places:
+        # 1. Pipeline-specific: lrs_raw.destination.bigquery.credentials.*
+        # 2. Generic: destination.bigquery.credentials.*
+        # We include both to ensure credentials are found
+        secrets_content = f'''# dlt secrets configuration
+# Auto-generated from GOOGLE_APPLICATION_CREDENTIALS JSON file
+# This file is updated dynamically to ensure credentials are available
+# when dlt recreates destination clients during pipeline.load()
+
+# Generic destination configuration (used as fallback)
+[destination.bigquery]
+location = "{location}"
+
+[destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+
+# Pipeline-specific configuration ({pipeline_name_lower} pipeline)
+[{pipeline_name_lower}.destination.bigquery]
+location = "{location}"
+
+[{pipeline_name_lower}.destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+'''
+        secrets_file.write_text(secrets_content)
+        
+        # Create credentials object for direct use (for initial destination creation)
+        from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
         credentials = GcpServiceAccountCredentials(
             project_id=creds_data.get("project_id"),
             private_key=creds_data.get("private_key"),

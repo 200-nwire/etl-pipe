@@ -227,6 +227,8 @@ def load_xapi_raw(
     # BigQuery natively supports JSON type - dlt will preserve nested structures automatically
     # Configure BigQuery destination with credentials
     # dlt requires explicit credentials, not just GOOGLE_APPLICATION_CREDENTIALS env var
+    # IMPORTANT: dlt's configuration resolution doesn't preserve credentials objects
+    # when recreating clients, so we need to set environment variables that dlt expects
     from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
     import json
     creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
@@ -234,7 +236,50 @@ def load_xapi_raw(
         # Load credentials from JSON file
         with open(creds_path, 'r') as f:
             creds_data = json.load(f)
-        # Extract only the fields needed by GcpServiceAccountCredentials
+        
+        # Create/update .dlt/secrets.toml from JSON file
+        # This ensures dlt can read credentials when recreating destination clients
+        from pathlib import Path
+        dlt_secrets_dir = Path(__file__).parent.parent.parent / ".dlt"
+        dlt_secrets_dir.mkdir(exist_ok=True)
+        secrets_file = dlt_secrets_dir / "secrets.toml"
+        
+        # Write secrets.toml with credentials from JSON
+        # Escape private key for TOML (escape quotes)
+        private_key_escaped = creds_data.get("private_key", "").replace('"', '\\"')
+        project_id = creds_data.get("project_id", "")
+        client_email = creds_data.get("client_email", "")
+        
+        # dlt looks for credentials in multiple places:
+        # 1. Pipeline-specific: lrs_raw.destination.bigquery.credentials.*
+        # 2. Generic: destination.bigquery.credentials.*
+        # We include both to ensure credentials are found
+        secrets_content = f'''# dlt secrets configuration
+# Auto-generated from GOOGLE_APPLICATION_CREDENTIALS JSON file
+# This file is updated dynamically to ensure credentials are available
+# when dlt recreates destination clients during pipeline.load()
+
+# Generic destination configuration (used as fallback)
+[destination.bigquery]
+location = "{location}"
+
+[destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+
+# Pipeline-specific configuration (lrs_raw pipeline)
+[lrs_raw.destination.bigquery]
+location = "{location}"
+
+[lrs_raw.destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+'''
+        secrets_file.write_text(secrets_content)
+        
+        # Also create credentials object for direct use
         credentials = GcpServiceAccountCredentials(
             project_id=creds_data.get("project_id"),
             private_key=creds_data.get("private_key"),
@@ -299,6 +344,88 @@ def load_xapi_raw(
         print(f"⚠️  WARNING: Extract did NOT create any pending packages!")
         print(f"     This means no data was extracted, so load() will have nothing to load")
         print(f"     Check if xAPI LRS endpoint is returning data or if there are connection issues")
+    
+    # CRITICAL: Ensure secrets.toml exists RIGHT BEFORE pipeline.load()
+    # dlt recreates the destination client during load() and needs credentials
+    # We must ensure secrets.toml is up-to-date at this point
+    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
+    print(f"⚠ Checking credentials file: {creds_path}")
+    print(f"   File exists: {os.path.exists(creds_path)}")
+    
+    if not os.path.exists(creds_path):
+        raise RuntimeError(f"GCP credentials file not found at {creds_path}. Cannot proceed with BigQuery load.")
+    
+    try:
+        import json
+        with open(creds_path, 'r') as f:
+            creds_data = json.load(f)
+        
+        # Validate required fields
+        required_fields = ["project_id", "private_key", "client_email"]
+        missing_fields = [f for f in required_fields if not creds_data.get(f)]
+        if missing_fields:
+            raise ValueError(f"Missing required fields in credentials: {missing_fields}")
+        
+        print(f"✓ Loaded credentials: project_id={creds_data.get('project_id')}, client_email={creds_data.get('client_email')}")
+        
+        # Create/update .dlt/secrets.toml from JSON file
+        # This ensures dlt can read credentials when recreating destination clients
+        from pathlib import Path
+        dlt_secrets_dir = Path(__file__).parent.parent.parent / ".dlt"
+        dlt_secrets_dir.mkdir(exist_ok=True)
+        secrets_file = dlt_secrets_dir / "secrets.toml"
+        
+        # Write secrets.toml with credentials from JSON
+        # Escape private key for TOML (escape quotes and backslashes)
+        private_key = creds_data.get("private_key", "")
+        # For TOML triple-quoted strings, we need to escape backslashes and quotes
+        private_key_escaped = private_key.replace("\\", "\\\\").replace('"', '\\"')
+        project_id = creds_data.get("project_id", "")
+        client_email = creds_data.get("client_email", "")
+        
+        # Get location from pipeline or environment
+        pipeline_location = location if 'location' in locals() else os.environ.get("BQ_LOCATION", "me-west1")
+        
+        # dlt looks for credentials in multiple places:
+        # 1. Pipeline-specific: lrs_raw.destination.bigquery.credentials.*
+        # 2. Generic: destination.bigquery.credentials.*
+        # We include both to ensure credentials are found
+        secrets_content = f'''# dlt secrets configuration
+# Auto-generated from GOOGLE_APPLICATION_CREDENTIALS JSON file
+# This file is updated dynamically to ensure credentials are available
+# when dlt recreates destination clients during pipeline.load()
+
+# Generic destination configuration (used as fallback)
+[destination.bigquery]
+location = "{pipeline_location}"
+
+[destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+
+# Pipeline-specific configuration (lrs_raw pipeline)
+[lrs_raw.destination.bigquery]
+location = "{pipeline_location}"
+
+[lrs_raw.destination.bigquery.credentials]
+project_id = "{project_id}"
+client_email = "{client_email}"
+private_key = """{private_key_escaped}"""
+'''
+        secrets_file.write_text(secrets_content)
+        print(f"✓ Updated secrets.toml at {secrets_file}")
+        print(f"   File size: {secrets_file.stat().st_size} bytes")
+        
+        # Verify the file was written correctly
+        if secrets_file.stat().st_size < 100:
+            raise RuntimeError(f"secrets.toml file is too small ({secrets_file.stat().st_size} bytes). Credentials may not have been written correctly.")
+        
+    except Exception as e:
+        print(f"✗ ERROR: Could not update secrets.toml: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     
     # Then load (will load the newly extracted data)
     # Since we dropped old pending packages before extract, load() will only see the new packages

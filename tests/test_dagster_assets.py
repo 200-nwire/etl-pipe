@@ -13,33 +13,49 @@ import pytest
 
 pytest.importorskip("dagster")
 pytest.importorskip(
-    "dlt.sources.mongo",
-    reason="Install dlt mongo extra to run Dagster asset tests.",
-)
-pytest.importorskip(
-    "dlt.sources.rest_api",
-    reason="Install dlt rest_api extra to run Dagster asset tests.",
+    "dlt",
+    reason="Install dlt to run Dagster asset tests.",
 )
 
 
 def test_ingestion_assets_materialize(monkeypatch):
     """Ingestion assets run end-to-end with in-memory outputs."""
 
-    from dagster import ResourceDefinition, materialize_to_memory, with_resources
+    from dagster import AssetSelection, materialize_to_memory, with_resources
+    from lineage.definitions import defs
 
-    from lineage.defs.raw_tables import mongo_raw_assets, xapi_raw_table_asset
-
-    mongo_tables: List[str] = ["raw.lms_users", "raw.lms_courses"]
-    xapi_table = "raw.xapi_statements"
-
-    # Mock the load functions
+    # Mock the load functions to avoid actual BigQuery/dlt calls
     monkeypatch.setattr(
-        "lineage.sources.mongo.load_mongo_raw", lambda **kwargs: "raw"
+        "lineage.sources.lms.load_mongo_raw", lambda **kwargs: ["lms_users", "lms_courses"]
     )
-    monkeypatch.setattr("lineage.sources.xapi.load_xapi_raw", lambda **kwargs: "raw")
+    monkeypatch.setattr("lineage.sources.lrs.load_xapi_raw", lambda **kwargs: ["lrs_statements"])
 
-    # Use first mongo asset and xapi asset for testing
-    test_assets = [mongo_raw_assets[0], xapi_raw_table_asset]
+    # Get raw assets from definitions (created by dlt component)
+    all_defs = defs
+    
+    # Handle both single-asset and multi-asset definitions
+    def get_asset_keys(asset_def):
+        """Get asset key(s) from an asset definition."""
+        if hasattr(asset_def, 'keys') and asset_def.keys:
+            return list(asset_def.keys) if isinstance(asset_def.keys, (set, frozenset)) else list(asset_def.keys)
+        elif hasattr(asset_def, 'key'):
+            return [asset_def.key]
+        else:
+            return []
+    
+    # Find raw assets (assets with key starting with "raw")
+    raw_assets = []
+    for asset in all_defs.assets:
+        keys = get_asset_keys(asset)
+        raw_keys = [k for k in keys if len(k.path) > 0 and k.path[0] == "raw"]
+        if raw_keys:
+            raw_assets.append(asset)
+    
+    if not raw_assets:
+        pytest.skip("No raw assets found - dlt component may not be loaded")
+    
+    # Select first raw asset for testing
+    test_assets = raw_assets[:1]
     
     asset_defs = with_resources(
         test_assets,

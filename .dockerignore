@@ -15,6 +15,10 @@ env/
 .dagster/
 # Note: dagster.yaml and workspace.yaml are needed for Dockerfile_dagster, so don't exclude them
 
+# dlt
+# Note: .dlt/secrets.toml is generated dynamically, but we need the directory structure
+# The secrets.toml file will be created at runtime from GOOGLE_APPLICATION_CREDENTIALS
+
 # dbt
 dbt/target/
 dbt/dbt_packages/

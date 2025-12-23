@@ -24,7 +24,7 @@ pytest.importorskip(
 )
 
 if importlib.util.find_spec("prepare_duckdb_raw") is None:
-    pytest.skip("prepare_duckdb_raw helper is not importable in this environment.")
+    pytest.skip("prepare_duckdb_raw helper is not importable in this environment.", allow_module_level=True)
 
 prepare_duckdb_raw = importlib.import_module("prepare_duckdb_raw")
 create_empty_raw_tables = prepare_duckdb_raw.create_empty_raw_tables
