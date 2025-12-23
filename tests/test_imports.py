@@ -12,7 +12,8 @@ pytest.importorskip(
 )
 
 
-def test_dagster_project_imports():
-    assert importlib.import_module("dagster_project")
-    assert importlib.import_module("pipelines.mongo")
-    assert importlib.import_module("pipelines.xapi")
+def test_lineage_imports():
+    """Test that lineage project modules can be imported."""
+    assert importlib.import_module("lineage")
+    assert importlib.import_module("lineage.sources.mongo")
+    assert importlib.import_module("lineage.sources.xapi")

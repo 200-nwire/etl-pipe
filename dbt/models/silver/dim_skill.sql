@@ -1,15 +1,18 @@
 {{ config(materialized='table') }}
 
+-- Transform skills from lms_rules or create from skill definitions
+-- Note: Skills may be embedded in rules/config, adjust based on actual schema
 select
-  cast(skill_id as string) as skill_id,
-  cast(external_skill_code as string) as external_skill_code,
+  cast(_id as string) as skill_id,
+  cast(externalCode as string) as external_skill_code,
   cast(name as string) as name,
-  description,
+  cast(description as string) as description,
   cast(domain as string) as domain,
   cast(strand as string) as strand,
   cast(level as string) as level,
-  cast(parent_skill_id as string) as parent_skill_id,
-  metadata,
-  cast(created_at as timestamp) as created_at,
-  cast(updated_at as timestamp) as updated_at
-from {{ source('raw_mongo', 'dim_skill') }}
+  cast(parentSkillId as string) as parent_skill_id,
+  cast(metadata as string) as metadata,
+  cast(createdAt as timestamp) as created_at,
+  cast(updatedAt as timestamp) as updated_at
+from {{ source('raw_lms', 'lms_rules') }}
+where type = 'skill'  -- Filter for skill rules, adjust based on actual schema

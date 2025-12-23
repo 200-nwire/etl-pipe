@@ -1,36 +1,53 @@
 version: 2
 
 sources:
-  - name: raw_mongo
-    description: "Raw MongoDB collections ingested via Airbyte and dlt"
-    schema: "{{ env_var('DBT_RAW_SCHEMA', env_var('DBT_DUCKDB_SCHEMA', 'raw')) }}"
+  - name: raw_lms
+    description: "Raw MongoDB LMS collections ingested via dlt into the raw schema (prefixed with lms_)"
+    # Use prefix system: prefix_raw (e.g., "dev_raw" if prefix="dev_")
+    schema: "{{ env_var('BQ_DATASET_PREFIX', '') }}raw"
     tables:
-      - name: dim_time
-      - name: dim_organization
-      - name: dim_learner
-      - name: dim_teacher
-      - name: dim_course
-      - name: dim_section
-      - name: dim_content_item
-      - name: dim_assessment
-      - name: dim_skill
-      - name: dim_session
-      - name: dim_platform
-      - name: dim_lti_tool
-      - name: dim_ai_tool
-      - name: ref_event_type
-      - name: ref_verb
-      - name: ref_signal_type
-      - name: fact_learning_event
-      - name: fact_assessment_attempt
-      - name: fact_learning_signal
-      - name: fact_variant_exposure
-      - name: fact_ai_interaction
-      - name: fact_session_summary
-      - name: fact_lti_launch
+      # Actual MongoDB collections (with lms_ prefix in database)
+      - name: lms_users
+        description: "User accounts and profiles from MongoDB LMS"
+      - name: lms_schools
+        description: "School/organization records from MongoDB LMS"
+      - name: lms_courses
+        description: "Course catalog from MongoDB LMS"
+      - name: lms_modules
+        description: "Course module definitions from MongoDB LMS"
+      - name: lms_lessons
+        description: "Lesson content and metadata from MongoDB LMS"
+      - name: lms_pages
+        description: "Page content and structure from MongoDB LMS"
+      - name: lms_blocks
+        description: "Content block definitions from MongoDB LMS"
+      - name: lms_exercises
+        description: "Exercise definitions from MongoDB LMS"
+      - name: lms_exercise_submissions
+        description: "Student exercise submissions from MongoDB LMS (MongoDB collection: submissions)"
+      - name: lms_enrollments
+        description: "Student course enrollments from MongoDB LMS"
+      - name: lms_projects
+        description: "Project definitions from MongoDB LMS"
+      - name: lms_project_enrollments
+        description: "Project enrollment records from MongoDB LMS"
+      - name: lms_surveys
+        description: "Survey definitions from MongoDB LMS"
+      - name: lms_survey_enrollments
+        description: "Survey enrollment records from MongoDB LMS"
+      - name: lms_survey_submissions
+        description: "Survey response submissions from MongoDB LMS"
+      - name: lms_assessment_profiles
+        description: "Assessment profile configurations from MongoDB LMS"
+      - name: lms_rules
+        description: "Business rules and configurations from MongoDB LMS"
 
-  - name: raw_xapi
-    description: "Raw xAPI statements ingested via dlt"
-    schema: "{{ env_var('DBT_RAW_SCHEMA', env_var('DBT_DUCKDB_SCHEMA', 'raw')) }}"
+  - name: raw_lrs
+    description: "Raw xAPI statements ingested via dlt from the LRS"
+    # Use prefix system: prefix_raw (e.g., "dev_raw" if prefix="dev_")
+    schema: "{{ env_var('BQ_DATASET_PREFIX', '') }}raw"
     tables:
+      - name: lrs_statements
+        description: "xAPI learning statements from the LRS endpoint"
       - name: xapi_statements
+        description: "xAPI learning statements (alias for lrs_statements)"

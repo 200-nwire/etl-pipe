@@ -1,25 +1,27 @@
 {{ config(materialized='table') }}
 
+-- Transform lms_exercise_submissions to fact_assessment_attempt (Ed-Fi schema)
 select
-  cast(assessment_attempt_id as string) as assessment_attempt_id,
-  cast(source_system as string) as source_system,
-  cast(source_attempt_key as string) as source_attempt_key,
-  cast(time_id as int) as time_id,
-  cast(attempt_start as timestamp) as attempt_start,
-  cast(attempt_end as timestamp) as attempt_end,
-  cast(learner_id as string) as learner_id,
-  cast(session_id as string) as session_id,
-  cast(organization_id as string) as organization_id,
-  cast(course_id as string) as course_id,
-  cast(section_id as string) as section_id,
-  cast(assessment_id as string) as assessment_id,
-  cast(content_id as string) as content_id,
-  cast(score_raw as {{ float_type() }}) as score_raw,
-  cast(score_scaled as {{ float_type() }}) as score_scaled,
-  cast(score_percent as {{ float_type() }}) as score_percent,
+  cast(_id as string) as assessment_attempt_id,
+  'lms' as source_system,
+  cast(_id as string) as source_attempt_key,
+  -- time_id should be joined from dim_time based on attempt_end
+  cast(null as int) as time_id,  -- TODO: Join with dim_time
+  cast(startedAt as timestamp) as attempt_start,
+  cast(submittedAt as timestamp) as attempt_end,
+  cast(userId as string) as learner_id,
+  cast(sessionId as string) as session_id,
+  cast(schoolId as string) as organization_id,
+  cast(courseId as string) as course_id,
+  cast(sectionId as string) as section_id,
+  cast(exerciseId as string) as assessment_id,
+  cast(exerciseId as string) as content_id,  -- Exercise is also content
+  cast(scoreRaw as {{ float_type() }}) as score_raw,
+  cast(scoreScaled as {{ float_type() }}) as score_scaled,
+  cast(scorePercent as {{ float_type() }}) as score_percent,
   cast(passed as bool) as passed,
-  cast(attempt_number as int) as attempt_number,
-  cast(item_count as int) as item_count,
-  cast(completed_item_count as int) as completed_item_count,
-  metadata
-from {{ source('raw_mongo', 'fact_assessment_attempt') }}
+  cast(attemptNumber as int) as attempt_number,
+  cast(itemCount as int) as item_count,
+  cast(completedItemCount as int) as completed_item_count,
+  cast(metadata as string) as metadata
+from {{ source('raw_lms', 'lms_exercise_submissions') }}

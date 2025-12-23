@@ -1,25 +1,30 @@
 version: 2
 
 models:
-  - name: dim_time
-    description: "Time dimension for calendar and time-of-day slicing."
+  - name: dim_date
+    description: "Date dimension for reporting. Facts keep exact UTC timestamps; date_id is derived for slicing."
     columns:
-      - name: time_id
+      - name: date_id
+        tests: [unique, not_null]
+  - name: dim_time_of_day
+    description: "Optional time-of-day dimension for diurnal analysis without exploding date dim."
+    columns:
+      - name: time_of_day_id
         tests: [unique, not_null]
   - name: dim_organization
     description: "Organization dimension representing districts, schools and other institutions."
     columns:
       - name: organization_id
         tests: [unique, not_null]
-  - name: dim_learner
-    description: "Learner dimension – long-term learner attributes and identifiers."
+  - name: dim_person
+    description: "Conformed person dim to avoid duplicated learner/teacher dimensions. Use role/membership bridges for context."
     columns:
-      - name: learner_id
+      - name: person_id
         tests: [unique, not_null]
-  - name: dim_teacher
-    description: "Teacher dimension – educator identifiers."
+  - name: dim_academic_term
+    description: "Academic calendar/terms for Ed-Fi-aligned slicing and cohort attribution."
     columns:
-      - name: teacher_id
+      - name: term_id
         tests: [unique, not_null]
   - name: dim_course
     description: "Course dimension – logical courses/classes over which sections and content are organized."
@@ -31,8 +36,8 @@ models:
     columns:
       - name: section_id
         tests: [unique, not_null]
-  - name: dim_content_item
-    description: "Content item dimension – questions, activities, readings and other instruction units."
+  - name: dim_content
+    description: "Content/activity objects; not necessarily assessment items."
     columns:
       - name: content_id
         tests: [unique, not_null]
@@ -41,10 +46,20 @@ models:
     columns:
       - name: assessment_id
         tests: [unique, not_null]
+  - name: dim_assessment_item
+    description: "Item dimension for item analysis, psychometrics, and mastery modeling."
+    columns:
+      - name: item_id
+        tests: [unique, not_null]
   - name: dim_skill
     description: "Skill dimension – structured competency graph."
     columns:
       - name: skill_id
+        tests: [unique, not_null]
+  - name: dim_standard
+    description: "Standards/outcomes graph, Ed-Fi/analytics friendly."
+    columns:
+      - name: standard_id
         tests: [unique, not_null]
   - name: dim_session
     description: "Session dimension – windows of learner interaction."
@@ -66,6 +81,11 @@ models:
     columns:
       - name: ai_tool_id
         tests: [unique, not_null]
+  - name: dim_device
+    description: "Device dimension for experience, performance, abuse analytics."
+    columns:
+      - name: device_id
+        tests: [unique, not_null]
   - name: ref_event_type
     description: "Reference table for coarse event buckets."
     columns:
@@ -81,6 +101,46 @@ models:
     columns:
       - name: signal_type_key
         tests: [unique, not_null]
+  - name: ref_membership_role
+    description: "Reference table for membership roles (Learner, Instructor, TeachingAssistant, Proctor, Observer, etc.)."
+    columns:
+      - name: role_key
+        tests: [unique, not_null]
+  - name: ref_object_type
+    description: "Reference table for normalized object types (ContentItem, AssessmentItem, Attempt, Annotation, LineItem, etc.)."
+    columns:
+      - name: object_type_key
+        tests: [unique, not_null]
+  - name: bridge_section_membership
+    description: "Roster/assignment bridge: replaces StudentSectionAssociation + StaffSectionAssociation patterns."
+    columns:
+      - name: section_membership_id
+        tests: [unique, not_null]
+  - name: bridge_course_membership
+    description: "Optional: membership at course level when sections are not available."
+    columns:
+      - name: course_membership_id
+        tests: [unique, not_null]
+  - name: bridge_content_skill_map
+    description: "Maps content objects to skills for tagging and inference."
+    columns:
+      - name: content_skill_map_id
+        tests: [unique, not_null]
+  - name: bridge_item_skill_map
+    description: "Maps assessment items to skills."
+    columns:
+      - name: item_skill_map_id
+        tests: [unique, not_null]
+  - name: bridge_skill_standard_map
+    description: "Connects internal skills to external curriculum standards."
+    columns:
+      - name: skill_standard_map_id
+        tests: [unique, not_null]
+  - name: bridge_assessment_item_map
+    description: "Assessment structure mapping; supports item analysis and blueprinting."
+    columns:
+      - name: assessment_item_map_id
+        tests: [unique, not_null]
   - name: fact_learning_event
     description: "Atomic event fact table – each row represents a single learner/content/platform event."
     columns:
@@ -90,6 +150,11 @@ models:
     description: "Assessment attempt fact – per learner per assessment execution."
     columns:
       - name: assessment_attempt_id
+        tests: [unique, not_null]
+  - name: fact_item_response
+    description: "Best-practice grain for item analysis (difficulty, discrimination proxies), mastery modeling, and remediation."
+    columns:
+      - name: item_response_id
         tests: [unique, not_null]
   - name: fact_learning_signal
     description: "Learning signal fact – computed analytics like mastery or risk."
@@ -111,8 +176,8 @@ models:
     columns:
       - name: session_summary_id
         tests: [unique, not_null]
-  - name: fact_lti_launch
-    description: "LTI launch fact – one row per LTI launch linking platform, tool, course, section and user."
+  - name: fact_launch
+    description: "Launch events used to connect context across standards and debugging adoption funnels."
     columns:
-      - name: lti_launch_id
+      - name: launch_id
         tests: [unique, not_null]

@@ -1,7 +1,10 @@
 {{ config(materialized='table') }}
 
+-- Reference table for learning signal types
+-- Note: Signal types not directly available in xAPI, return empty result
 select
-  cast(signal_type_key as string) as signal_type_key,
-  cast(description as string) as description,
-  cast(category as string) as category
-from {{ source('raw_mongo', 'ref_signal_type') }}
+  cast(null as string) as signal_type_key,
+  cast(null as string) as description,
+  cast(null as string) as category
+from {{ ref('stg_lrs_events') }}
+limit 0  -- Signal types not available in xAPI, return empty result

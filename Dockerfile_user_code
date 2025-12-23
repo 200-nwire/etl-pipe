@@ -1,0 +1,46 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install uv for fast dependency management
+# Clean pip cache after installation
+RUN pip install --no-cache-dir uv && \
+    rm -rf /root/.cache/pip
+
+# Copy project files (copy lineage first to get lock file)
+COPY lineage ./lineage
+COPY dbt ./dbt
+COPY pyproject.toml ./
+
+# Install dependencies using uv
+WORKDIR /app/lineage
+# Install dependencies - uv sync will use uv.lock if present
+# The --frozen flag ensures exact versions from lock file
+# Clean up cache after installation to save space
+RUN uv sync --frozen && \
+    rm -rf /root/.cache/uv && \
+    find /app/lineage/.venv -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true && \
+    find /app/lineage/.venv -name "*.pyc" -delete 2>/dev/null || true
+
+# Set Python path for Dagster to find modules
+ENV PYTHONPATH=/app/lineage/src
+# Add uv's virtual environment to PATH
+ENV PATH="/app/lineage/.venv/bin:$PATH"
+# Ensure Python uses the venv
+ENV VIRTUAL_ENV=/app/lineage/.venv
+
+# Expose gRPC port
+EXPOSE 4000
+
+# Healthcheck for Docker Compose
+# Increased timeouts to allow server to fully start
+# The server takes ~10-15 seconds to load definitions and start
+HEALTHCHECK --timeout=5s --start-period=30s --interval=10s --retries=3 \
+    CMD ["uv", "run", "dagster", "api", "grpc-health-check", "-p", "4000", "-h", "0.0.0.0"]
+
+# CMD allows this to be overridden from run launchers or executors to execute runs and steps
+# Use uv run to ensure venv is used
+CMD ["uv", "run", "dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-m", "lineage.definitions"]
+

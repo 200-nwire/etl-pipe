@@ -10,26 +10,31 @@ authors = [{name = "Data Eng Team"}]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "dagster==1.7.9",
-  "dagster-webserver==1.7.9",
-  "dagster-dbt==0.23.9",
-  "dlt[bigquery,pymongo]==0.4.6",
-  "dbt-bigquery==1.8.2",
-  "pymongo==4.6.3",
+  "dagster>=1.12.6",
+  "dagster-webserver>=1.12.6",
+  "dagster-dg-cli>=1.12.6",  # Dagster CLI tool (recommended by docs)
+  "dagster-dbt>=0.25.0",  # Updated for Dagster 1.12+ compatibility
+  "dlt[bigquery]>=1.20.0",  # Major upgrade from 0.4.6 - check breaking changes
+  "dbt-bigquery>=1.10.0",  # Updated for dbt-core 1.10+ compatibility
+  "dbt-core>=1.10.15",  # Latest stable version
+  "pymongo>=4.15.5",  # Latest stable version (4.6.3 → 4.15.5)
   "python-dotenv>=1.0",
   "pyyaml>=6.0.1",
+  # MCP support (now available with Dagster 1.12+)
+  "dagster[mcp]>=1.12.6",  # Full MCP support enabled
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=7.4",
-  "ruff>=0.4.4",
+  "pytest>=8.0.0",
+  "ruff>=0.6.0",
   "duckdb>=1.0.0",
-  "dbt-duckdb==1.8.2",
+  "dbt-duckdb>=1.10.0",  # Updated for dbt-core 1.10+ compatibility
+  "uv>=0.9.0",  # For dbt MCP and modern Python tooling (latest is 0.9.17)
 ]
 
 [tool.setuptools]
-packages = ["dagster_project", "pipelines"]
+packages = []  # lineage/ is a separate project with its own pyproject.toml
 
 [tool.ruff]
 line-length = 100

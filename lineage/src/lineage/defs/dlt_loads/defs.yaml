@@ -1,0 +1,9 @@
+type: dagster_dlt.DltLoadCollectionComponent
+
+attributes:
+  loads:
+    - source: lineage.defs.dlt_loads.loads.lms_source
+      pipeline: lineage.defs.dlt_loads.loads.lms_pipeline
+    - source: lineage.defs.dlt_loads.loads.lrs_source
+      pipeline: lineage.defs.dlt_loads.loads.lrs_pipeline
+

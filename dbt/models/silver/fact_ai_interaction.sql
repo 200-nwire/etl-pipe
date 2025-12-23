@@ -1,24 +1,27 @@
 {{ config(materialized='table') }}
 
+-- Transform AI interactions from xAPI statements (via staging)
+-- Filter for AI-related events (where aiToolId is not null)
 select
-  cast(ai_interaction_id as string) as ai_interaction_id,
-  cast(time_id as int) as time_id,
-  cast(interaction_timestamp as timestamp) as interaction_timestamp,
-  cast(learner_id as string) as learner_id,
-  cast(teacher_id as string) as teacher_id,
-  cast(session_id as string) as session_id,
-  cast(organization_id as string) as organization_id,
-  cast(course_id as string) as course_id,
-  cast(section_id as string) as section_id,
-  cast(content_id as string) as content_id,
-  cast(skill_id as string) as skill_id,
-  cast(ai_tool_id as string) as ai_tool_id,
-  cast(interaction_role as string) as interaction_role,
-  cast(input_tokens as int64) as input_tokens,
-  cast(output_tokens as int64) as output_tokens,
-  cast(latency_ms as int64) as latency_ms,
-  cast(feedback_rating as {{ float_type() }}) as feedback_rating,
-  cast(feedback_label as string) as feedback_label,
-  transcript_snippet,
-  metadata
-from {{ source('raw_mongo', 'fact_ai_interaction') }}
+  cast(event_id as string) as ai_interaction_id,
+  cast(null as int) as time_id,  -- TODO: Join with dim_time
+  cast(event_timestamp as timestamp) as interaction_timestamp,
+  cast(userId as string) as learner_id,
+  cast(null as string) as teacher_id,  -- Not available in xAPI
+  cast(sessionId as string) as session_id,
+  cast(schoolId as string) as organization_id,
+  cast(courseId as string) as course_id,
+  cast(sectionId as string) as section_id,
+  cast(contentId as string) as content_id,
+  cast(skillId as string) as skill_id,
+  cast(aiToolId as string) as ai_tool_id,
+  cast(null as string) as interaction_role,  -- Not available in xAPI
+  cast(null as int64) as input_tokens,  -- Not available in xAPI
+  cast(null as int64) as output_tokens,  -- Not available in xAPI
+  cast(latencyMs as int64) as latency_ms,
+  cast(null as float) as feedback_rating,  -- Not available in xAPI
+  cast(null as string) as feedback_label,  -- Not available in xAPI
+  cast(null as string) as transcript_snippet,  -- Not available in xAPI
+  cast(metadata as string) as metadata
+from {{ ref('stg_lrs_events') }}
+where aiToolId is not null  -- Filter for AI interaction events

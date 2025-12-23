@@ -23,8 +23,8 @@ pytest.importorskip(
 import dlt
 import duckdb
 
-from pipelines.mongo import load_mongo_raw
-from pipelines.xapi import load_xapi_raw
+from lineage.sources.mongo import load_mongo_raw
+from lineage.sources.xapi import load_xapi_raw
 
 
 @dlt.source(name="mock_mongo")
@@ -63,10 +63,10 @@ def mock_mongo_source():
 
 
 def _duckdb_pipeline_kwargs(temp_dir: Path, db_name: str) -> dict:
-    return {
-        "pipelines_dir": str(temp_dir / "pipelines"),
-        "destination_kwargs": {"database": str(temp_dir / db_name)},
-    }
+    """Return kwargs for DuckDB destination."""
+    import os
+    os.environ["DUCKDB_DATABASE"] = str(temp_dir / db_name)
+    return {}
 
 
 def test_mongo_roundtrip_in_duckdb(tmp_path: Path) -> None:
