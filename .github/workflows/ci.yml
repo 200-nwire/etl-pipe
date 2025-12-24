@@ -58,8 +58,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/fake.json
         run: |
           echo '{"project_id": "dummy", "private_key": "test", "client_email": "test@test.com"}' > /tmp/fake.json
-          cd dbt
-          dbt parse --profiles-dir . --project-dir .
+          cd lineage
+          uv run dbt parse --profiles-dir ../dbt --project-dir ../dbt
       - name: dbt compile
         env:
           DBT_PROFILES_DIR: ../dbt
@@ -70,8 +70,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/fake.json
         run: |
           echo '{"project_id": "dummy", "private_key": "test", "client_email": "test@test.com"}' > /tmp/fake.json
-          cd dbt
-          dbt compile --profiles-dir . --project-dir . || echo "dbt compile requires real BigQuery credentials - skipping in CI"
+          cd lineage
+          uv run dbt compile --profiles-dir ../dbt --project-dir ../dbt || echo "dbt compile requires real BigQuery credentials - skipping in CI"
 
   dagster-validate:
     runs-on: ubuntu-latest
@@ -105,6 +105,18 @@ jobs:
           uv sync
           # Ensure the package is installed so imports work
           uv pip install -e .
+      - name: Generate dbt manifest
+        env:
+          DBT_PROFILES_DIR: ../dbt
+          GCP_PROJECT: test-project
+          GCP_BQ_DATASET: test
+          BQ_DATASET_PREFIX: test_
+          BQ_LOCATION: US
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/fake.json
+        run: |
+          cd lineage
+          # Generate dbt manifest.json required by Dagster dbt component
+          uv run dbt parse --profiles-dir ../dbt --project-dir ../dbt
       - name: Validate Dagster definitions
         run: |
           cd lineage

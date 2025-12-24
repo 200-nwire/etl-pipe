@@ -498,6 +498,11 @@ private_key = {private_key_toml}
             collection_state = state.get("sources", {}).get(table_name, {})
             last_modified = collection_state.get("last_modified")
             
+            if last_modified:
+                print(f"  📊 Collection '{collection_name}' -> table '{table_name}': Using incremental load from {last_modified}")
+            else:
+                print(f"  📊 Collection '{collection_name}' -> table '{table_name}': Full load (no previous state)")
+            
             # Use dlt's incremental loading - it handles the query automatically
             # Try common timestamp field names
             incremental = dlt.sources.incremental(
@@ -520,10 +525,14 @@ private_key = {private_key_toml}
             def collection_resource(incremental=incremental):
                 collection = db[collection_name]
                 
+                # Log the query being used for debugging
+                print(f"  🔍 Processing collection '{collection_name}' (will map to table '{table_name}')")
+                
                 # Optimize query - use single field if possible (faster than $or)
                 # Try to find the most common timestamp field first
                 query = {}
                 if incremental.last_value:
+                    print(f"    Incremental last_value: {incremental.last_value}")
                     # Convert incremental.last_value (string) to datetime for MongoDB query
                     from dateutil.parser import isoparse
                     try:
@@ -559,6 +568,12 @@ private_key = {private_key_toml}
                     else:
                         # Empty collection, no query needed
                         query = {}
+                        print(f"    ⚠️  Collection '{collection_name}' appears empty (no sample document found)")
+                
+                if query:
+                    print(f"    Query filter: {query}")
+                else:
+                    print(f"    Query filter: {} (loading all documents)")
                 
                 # Optimize cursor settings for performance
                 # - Larger batch size = fewer round trips (but more memory)
@@ -634,6 +649,30 @@ private_key = {private_key_toml}
         print(f"✓ load_info object received: {type(load_info)}")
         # Print all attributes of load_info for debugging
         print(f"  load_info attributes: {[attr for attr in dir(load_info) if not attr.startswith('_')]}")
+        
+        # CRITICAL: Check if load is empty - this is the most common reason for "success but no tables"
+        if hasattr(load_info, 'is_empty'):
+            if load_info.is_empty:
+                print("  ⚠️  WARNING: load_info.is_empty is True!")
+                print("     This means dlt completed successfully but NO DATA was loaded")
+                print("     Possible reasons:")
+                print("     1. All data was filtered out by incremental query (already loaded)")
+                print("     2. Extract created empty packages (no matching documents)")
+                print("     3. Data was extracted but load() had nothing to process")
+                print("     Check the extract logs above to see if documents were actually extracted")
+            else:
+                print(f"  ✓ load_info.is_empty is False - data should have been loaded")
+        
+        # Check load_packages to see what was actually loaded
+        if hasattr(load_info, 'load_packages'):
+            print(f"  Load packages: {len(load_info.load_packages) if load_info.load_packages else 0}")
+            if load_info.load_packages:
+                for i, pkg in enumerate(load_info.load_packages[:3]):
+                    print(f"    Package {i+1}: {pkg}")
+        
+        # Check loads_ids
+        if hasattr(load_info, 'loads_ids'):
+            print(f"  Load IDs: {load_info.loads_ids}")
     else:
         print("  ⚠️  WARNING: load_info is None or False!")
     
@@ -684,6 +723,19 @@ private_key = {private_key_toml}
                 print("  ⚠️  WARNING: load_info.jobs is EMPTY - dlt did not create any load jobs!")
                 print("     This means data was extracted but NOT loaded to BigQuery")
                 print("     Check if there are pending packages or if load() failed silently")
+                print("     This often happens when load_info.is_empty is True")
+        
+        # Check metrics for row counts
+        if hasattr(load_info, 'metrics'):
+            metrics = load_info.metrics
+            if metrics:
+                print(f"  Metrics: {metrics}")
+                if hasattr(metrics, 'get'):
+                    row_counts = metrics.get('row_counts', {})
+                    if row_counts:
+                        print(f"  Row counts by table: {row_counts}")
+                    else:
+                        print("  ⚠️  No row counts in metrics - likely empty load")
         
         # Check for load errors
         if hasattr(load_info, 'loads'):
@@ -715,36 +767,54 @@ private_key = {private_key_toml}
         if hasattr(load_info, 'pipeline') and hasattr(load_info.pipeline, 'default_schema'):
             print(f"  Schema: {load_info.pipeline.default_schema.name if hasattr(load_info.pipeline.default_schema, 'name') else 'N/A'}")
     
-    # Verify table exists in BigQuery
-    print("\n🔍 Verifying table exists in BigQuery...")
+    # Verify tables exist in BigQuery
+    print("\n🔍 Verifying tables exist in BigQuery...")
     try:
         project = os.environ.get('GCP_PROJECT')
         if project:
             client = bq_client.Client(project=project, location=location)
-            table_ref = client.dataset(dataset_name).table("lms_exercise_submissions")
+            dataset_ref = client.dataset(dataset_name)
+            
+            # List all tables in the dataset
             try:
+                tables = list(client.list_tables(dataset_ref))
+                if tables:
+                    print(f"✓ Found {len(tables)} table(s) in {project}.{dataset_name}:")
+                    for t in tables:
+                        try:
+                            table = client.get_table(t)
+                            print(f"  - {t.table_id}: {table.num_rows:,} rows, {table.num_bytes / (1024*1024):.2f} MB")
+                        except Exception as table_err:
+                            print(f"  - {t.table_id}: (could not get details: {table_err})")
+                    
+                    # Check for expected table names based on collections loaded
+                    expected_tables = [f"lms_{COLLECTION_TO_TABLE_MAP.get(c, c).replace('-', '_')}" for c in selected_collections]
+                    missing_tables = [t for t in expected_tables if not any(tbl.table_id == t for tbl in tables)]
+                    if missing_tables:
+                        print(f"\n  ⚠️  Expected tables not found: {missing_tables}")
+                        print(f"     This suggests some collections were not loaded")
+                else:
+                    print(f"✗ Dataset {project}.{dataset_name} exists but has NO TABLES")
+                    print("  This confirms that load_info.is_empty was likely True")
+                    print("  Possible causes:")
+                    print("    1. All documents were filtered out by incremental query")
+                    print("    2. Extract created empty packages (no matching documents)")
+                    print("    3. Load completed but had no data to write")
+            except Exception as list_error:
+                print(f"✗ Could not list tables: {list_error}")
+                
+            # Also check for the specific table mentioned in logs
+            try:
+                table_ref = client.dataset(dataset_name).table("lms_exercise_submissions")
                 table = client.get_table(table_ref)
-                print(f"✓ Table exists: {project}.{dataset_name}.lms_exercise_submissions")
+                print(f"\n✓ Specific check: lms_exercise_submissions exists")
                 print(f"  Rows: {table.num_rows:,}")
                 print(f"  Size: {table.num_bytes / (1024*1024):.2f} MB")
-                print(f"  Created: {table.created}")
-                print(f"  Modified: {table.modified}")
             except Exception as e:
-                print(f"✗ Table NOT found: {project}.{dataset_name}.lms_exercise_submissions")
+                print(f"\n✗ Specific check: lms_exercise_submissions NOT found")
                 print(f"  Error: {e}")
-                print("  This means the load may have failed or the table name is different")
-                # List all tables in the dataset to help debug
-                try:
-                    dataset_ref = client.dataset(dataset_name)
-                    tables = list(client.list_tables(dataset_ref))
-                    if tables:
-                        print(f"  Available tables in {dataset_name}:")
-                        for t in tables[:10]:  # Show first 10
-                            print(f"    - {t.table_id}")
-                    else:
-                        print(f"  Dataset {dataset_name} exists but has no tables")
-                except Exception as list_error:
-                    print(f"  Could not list tables: {list_error}")
+                print("  This table would be created from the 'submissions' collection")
+                print("  Check if 'submissions' is in the selected_collections list")
     except Exception as e:
         print(f"⚠ Could not verify table existence: {e}")
     
