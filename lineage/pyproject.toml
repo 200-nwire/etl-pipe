@@ -46,4 +46,10 @@ registry_modules = [
   "lineage.lib.*",
 ]
 
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+ignore = ["E501"]  # Ignore line too long - docstrings often need to be longer
+
 

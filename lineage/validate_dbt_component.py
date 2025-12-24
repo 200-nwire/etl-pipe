@@ -25,7 +25,7 @@ def validate_component():
     component_type = config.get("type")
     attributes = config.get("attributes", {})
     
-    print(f"   ✓ YAML file exists and is valid")
+    print("   ✓ YAML file exists and is valid")
     print(f"   ✓ Component type: {component_type}")
     print(f"   ✓ Project path: {attributes.get('project')}")
     print(f"   ✓ Select: {attributes.get('select')}")
@@ -62,15 +62,15 @@ def validate_component():
         dbt_dir = lineage_dir.parent / "dbt"
         print(f"   ✓ Path resolves to: {dbt_dir}")
         if dbt_dir.exists():
-            print(f"   ✓ dbt directory exists")
+            print("   ✓ dbt directory exists")
             # Check for dbt_project.yml
             dbt_project_yml = dbt_dir / "dbt_project.yml"
             if dbt_project_yml.exists():
-                print(f"   ✓ dbt_project.yml found")
+                print("   ✓ dbt_project.yml found")
             else:
-                print(f"   ⚠ dbt_project.yml not found (may be named differently)")
+                print("   ⚠ dbt_project.yml not found (may be named differently)")
         else:
-            print(f"   ✗ dbt directory does not exist")
+            print("   ✗ dbt directory does not exist")
             return False
     
     # 5. Check registry_modules in pyproject.toml
@@ -94,7 +94,7 @@ def validate_component():
         defs_path = Path(__file__).parent / "src" / "lineage" / "defs"
         discovered_defs = load_from_defs_folder(path_within_project=defs_path)
         
-        print(f"   ✓ load_from_defs_folder succeeded")
+        print("   ✓ load_from_defs_folder succeeded")
         print(f"   ✓ Discovered {len(discovered_defs.assets)} assets")
         print(f"   ✓ Discovered {len(discovered_defs.resources)} resources")
         

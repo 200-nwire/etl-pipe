@@ -6,7 +6,7 @@ Silver layer follows dimensional modeling best practices and aligns with:
 - xAPI 1.0.3: Statement, Actor, Verb, Object, Result, Context
 """
 
-from dagster import MetadataValue, TableSchema, TableColumn
+from dagster import MetadataValue, TableSchema
 
 # Import complete schemas from generated file
 try:

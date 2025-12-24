@@ -31,6 +31,11 @@ ENV PATH="/app/lineage/.venv/bin:$PATH"
 # Ensure Python uses the venv
 ENV VIRTUAL_ENV=/app/lineage/.venv
 
+# Create a wrapper script for dagster command that DockerRunLauncher will use
+# This ensures dagster is available in PATH even when DockerRunLauncher overrides CMD
+RUN echo '#!/bin/sh\ncd /app/lineage && uv run dagster "$@"' > /usr/local/bin/dagster && \
+    chmod +x /usr/local/bin/dagster
+
 # Expose gRPC port
 EXPOSE 4000
 

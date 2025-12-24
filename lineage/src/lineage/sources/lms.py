@@ -1,13 +1,13 @@
 """dlt pipeline for LMS (MongoDB) raw ingestion using dlt's incremental loading features."""
 
 import os
-from typing import List, Optional, Dict, Any
-from bson import ObjectId
-from datetime import datetime, date
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
 import dlt
-from pymongo import MongoClient
+from bson import ObjectId
 from google.cloud import bigquery as bq_client
+from pymongo import MongoClient
 
 # Actual MongoDB collection names (as they exist in the database)
 # Note: MongoDB uses hyphens, but we convert to underscores for table names
@@ -224,14 +224,14 @@ def load_mongo_raw(
             dataset_ref = client.dataset(dataset_name)
             try:
                 # Check if dataset exists
-                existing = client.get_dataset(dataset_ref)
+                client.get_dataset(dataset_ref)
                 print(f"✓ Dataset {dataset_name} already exists in {location}")
             except Exception:
                 # Create dataset if it doesn't exist
                 print(f"⚠ Dataset {dataset_name} does not exist - creating...")
                 dataset = bq_client.Dataset(dataset_ref)
                 dataset.location = location
-                dataset.description = f"Raw data from dlt pipelines (auto-created)"
+                dataset.description = "Raw data from dlt pipelines (auto-created)"
                 dataset = client.create_dataset(dataset, exists_ok=False)
                 print(f"✓ Successfully created dataset: {dataset_name} in {location}")
         except Exception as e:
@@ -245,9 +245,10 @@ def load_mongo_raw(
     # dlt requires explicit credentials, not just GOOGLE_APPLICATION_CREDENTIALS env var
     # IMPORTANT: dlt's configuration resolution doesn't preserve credentials objects
     # when recreating clients, so we need to write secrets.toml that dlt can read
-    from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
     import json
     from pathlib import Path
+
+    from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
     
     # Robust credential path resolution:
     # 1. Try container path first (works in Docker)
@@ -382,10 +383,10 @@ private_key = {private_key_toml}
             if not all(k in creds for k in ['project_id', 'client_email', 'private_key']):
                 missing = [k for k in ['project_id', 'client_email', 'private_key'] if k not in creds]
                 raise RuntimeError(f"secrets.toml missing credential fields: {missing}")
-            print(f"✓ Verified secrets.toml is valid and contains all required credentials")
+            print("✓ Verified secrets.toml is valid and contains all required credentials")
         except ImportError:
             # tomli not available, skip validation
-            print(f"⚠ Could not validate secrets.toml (tomli not available)")
+            print("⚠ Could not validate secrets.toml (tomli not available)")
         except Exception as e:
             print(f"✗ ERROR: secrets.toml validation failed: {e}")
             # Print first 500 chars of the file for debugging
@@ -602,23 +603,23 @@ private_key = {private_key_toml}
     # Extract data first (creates new pending packages)
     # Note: We already dropped old pending packages above, so extract will only create new ones
     print("⚠ Starting pipeline.extract()...")
-    extract_info = pipeline.extract(source)
-    print(f"✓ pipeline.extract() completed")
+    pipeline.extract(source)
+    print("✓ pipeline.extract() completed")
     
     # Check if extract created any pending packages
     if pipeline.has_pending_data:
-        print(f"✓ Extract created pending packages - ready to load")
+        print("✓ Extract created pending packages - ready to load")
     else:
-        print(f"⚠️  WARNING: Extract did NOT create any pending packages!")
-        print(f"     This means no data was extracted, so load() will have nothing to load")
-        print(f"     Check if MongoDB collections are empty or if there are connection issues")
+        print("⚠️  WARNING: Extract did NOT create any pending packages!")
+        print("     This means no data was extracted, so load() will have nothing to load")
+        print("     Check if MongoDB collections are empty or if there are connection issues")
     
     # Then load (will load the newly extracted data)
     # Since we dropped old pending packages before extract, load() will only see the new packages
     print("⚠ Starting pipeline.load()...")
     try:
         load_info = pipeline.load()
-        print(f"✓ pipeline.load() completed")
+        print("✓ pipeline.load() completed")
         if load_info is None:
             print("  ⚠️  WARNING: load_info is None - load() may have failed silently")
             print("  This could mean no data was loaded or load() returned None")
@@ -637,12 +638,12 @@ private_key = {private_key_toml}
         print("  ⚠️  WARNING: load_info is None or False!")
     
     if load_info:
-        print(f"✓ dlt load completed:")
+        print("✓ dlt load completed:")
         print(f"  Pipeline dataset_name: {pipeline.dataset_name}")
         print(f"  Expected dataset_name: {dataset_name}")
         if pipeline.dataset_name != dataset_name:
-            print(f"  ⚠️  WARNING: Pipeline dataset name differs from expected!")
-            print(f"     This means dlt appended a timestamp or suffix")
+            print("  ⚠️  WARNING: Pipeline dataset name differs from expected!")
+            print("     This means dlt appended a timestamp or suffix")
             print(f"     Tables are in: {pipeline.dataset_name}, not {dataset_name}")
         print(f"  Destination: {pipeline.destination.destination_name if hasattr(pipeline.destination, 'destination_name') else 'bigquery'}")
         # Get project from destination or environment
@@ -661,7 +662,7 @@ private_key = {private_key_toml}
                 config = pipeline.destination.configuration()
                 if hasattr(config, 'location'):
                     location = config.location
-            except:
+            except Exception:
                 pass
         print(f"  Location: {location}")
         # Log load info details - CRITICAL for debugging dataset creation
@@ -680,9 +681,9 @@ private_key = {private_key_toml}
                     if hasattr(job, 'exception'):
                         print(f"    ⚠️  ERROR in job: {job.exception}")
             else:
-                print(f"  ⚠️  WARNING: load_info.jobs is EMPTY - dlt did not create any load jobs!")
-                print(f"     This means data was extracted but NOT loaded to BigQuery")
-                print(f"     Check if there are pending packages or if load() failed silently")
+                print("  ⚠️  WARNING: load_info.jobs is EMPTY - dlt did not create any load jobs!")
+                print("     This means data was extracted but NOT loaded to BigQuery")
+                print("     Check if there are pending packages or if load() failed silently")
         
         # Check for load errors
         if hasattr(load_info, 'loads'):
@@ -707,7 +708,7 @@ private_key = {private_key_toml}
                         if 'job_info' in load and isinstance(load['job_info'], dict):
                             if 'exception' in load['job_info']:
                                 print(f"  ⚠️  EXCEPTION in job_info: {load['job_info']['exception']}")
-        except:
+        except Exception:
             pass
         
         # Check for errors
@@ -715,12 +716,12 @@ private_key = {private_key_toml}
             print(f"  Schema: {load_info.pipeline.default_schema.name if hasattr(load_info.pipeline.default_schema, 'name') else 'N/A'}")
     
     # Verify table exists in BigQuery
-    print(f"\n🔍 Verifying table exists in BigQuery...")
+    print("\n🔍 Verifying table exists in BigQuery...")
     try:
         project = os.environ.get('GCP_PROJECT')
         if project:
             client = bq_client.Client(project=project, location=location)
-            table_ref = client.dataset(dataset_name).table(f"lms_exercise_submissions")
+            table_ref = client.dataset(dataset_name).table("lms_exercise_submissions")
             try:
                 table = client.get_table(table_ref)
                 print(f"✓ Table exists: {project}.{dataset_name}.lms_exercise_submissions")
@@ -731,7 +732,7 @@ private_key = {private_key_toml}
             except Exception as e:
                 print(f"✗ Table NOT found: {project}.{dataset_name}.lms_exercise_submissions")
                 print(f"  Error: {e}")
-                print(f"  This means the load may have failed or the table name is different")
+                print("  This means the load may have failed or the table name is different")
                 # List all tables in the dataset to help debug
                 try:
                     dataset_ref = client.dataset(dataset_name)

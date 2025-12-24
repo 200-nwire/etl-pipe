@@ -49,8 +49,8 @@ run_launcher:
         # Mount GCP credentials file for BigQuery access in run containers
         # Uses GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH from daemon environment (set in docker-compose.yml)
         # Container path is always /tmp/gcp_credentials.json
-        # Note: dagster.yaml supports ${VAR} syntax for environment variable substitution
-        - ${GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH}:/tmp/gcp_credentials.json:ro
+        # Note: This will be replaced by configure_dagster.py script at startup
+        - PLACEHOLDER_GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH:/tmp/gcp_credentials.json:ro
     # Network configuration - must match docker-compose network name
     # Note: 'network' cannot be in container_kwargs, use 'networks' instead
     networks:

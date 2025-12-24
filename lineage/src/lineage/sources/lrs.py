@@ -78,7 +78,7 @@ def load_xapi_raw(
     # We'll use BearerTokenAuth if token is provided, or HttpBasicAuth if we can parse username:password
     auth_config = None
     if auth_token:
-        from dlt.sources.helpers.rest_client.auth import HttpBasicAuth, BearerTokenAuth
+        from dlt.sources.helpers.rest_client.auth import BearerTokenAuth, HttpBasicAuth
         # Try to parse as username:password
         if ":" in auth_token and not auth_token.startswith("Basic "):
             parts = auth_token.split(":", 1)
@@ -217,7 +217,7 @@ def load_xapi_raw(
                 print(f"⚠ Dataset {dataset_name} does not exist - creating...")
                 dataset = bq_client.Dataset(dataset_ref)
                 dataset.location = location
-                dataset.description = f"Raw data from dlt pipelines (auto-created)"
+                dataset.description = "Raw data from dlt pipelines (auto-created)"
                 dataset = client.create_dataset(dataset, exists_ok=False)
                 print(f"✓ Successfully created dataset: {dataset_name} in {location}")
         except Exception as e:
@@ -229,8 +229,9 @@ def load_xapi_raw(
     # dlt requires explicit credentials, not just GOOGLE_APPLICATION_CREDENTIALS env var
     # IMPORTANT: dlt's configuration resolution doesn't preserve credentials objects
     # when recreating clients, so we need to set environment variables that dlt expects
-    from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
     import json
+
+    from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
     creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
     if os.path.exists(creds_path):
         # Load credentials from JSON file
@@ -335,15 +336,15 @@ private_key = """{private_key_escaped}"""
     # Note: We already dropped old pending packages above, so extract will only create new ones
     print("⚠ Starting pipeline.extract()...")
     extract_info = pipeline.extract(source)
-    print(f"✓ pipeline.extract() completed")
+    print("✓ pipeline.extract() completed")
     
     # Check if extract created any pending packages
     if pipeline.has_pending_data:
-        print(f"✓ Extract created pending packages - ready to load")
+        print("✓ Extract created pending packages - ready to load")
     else:
-        print(f"⚠️  WARNING: Extract did NOT create any pending packages!")
-        print(f"     This means no data was extracted, so load() will have nothing to load")
-        print(f"     Check if xAPI LRS endpoint is returning data or if there are connection issues")
+        print("⚠️  WARNING: Extract did NOT create any pending packages!")
+        print("     This means no data was extracted, so load() will have nothing to load")
+        print("     Check if xAPI LRS endpoint is returning data or if there are connection issues")
     
     # Robust credential path resolution:
     # 1. Try container path first (works in Docker)
@@ -473,10 +474,10 @@ private_key = """{private_key_escaped}"""
             if not all(k in creds for k in ['project_id', 'client_email', 'private_key']):
                 missing = [k for k in ['project_id', 'client_email', 'private_key'] if k not in creds]
                 raise RuntimeError(f"secrets.toml missing credential fields: {missing}")
-            print(f"✓ Verified secrets.toml is valid and contains all required credentials")
+            print("✓ Verified secrets.toml is valid and contains all required credentials")
         except ImportError:
             # tomli not available, skip validation
-            print(f"⚠ Could not validate secrets.toml (tomli not available)")
+            print("⚠ Could not validate secrets.toml (tomli not available)")
         except Exception as e:
             print(f"✗ ERROR: secrets.toml validation failed: {e}")
             # Print first 500 chars of the file for debugging
@@ -496,7 +497,7 @@ private_key = """{private_key_escaped}"""
     print("⚠ Starting pipeline.load()...")
     try:
         load_info = pipeline.load()
-        print(f"✓ pipeline.load() completed")
+        print("✓ pipeline.load() completed")
         if load_info is None:
             print("  ⚠️  WARNING: load_info is None - load() may have failed silently")
     except Exception as e:
@@ -507,12 +508,12 @@ private_key = """{private_key_escaped}"""
     
     # Log where data was actually loaded
     if load_info:
-        print(f"✓ dlt load completed:")
+        print("✓ dlt load completed:")
         print(f"  Pipeline dataset_name: {pipeline.dataset_name}")
         print(f"  Expected dataset_name: {dataset_name}")
         if pipeline.dataset_name != dataset_name:
-            print(f"  ⚠️  WARNING: Pipeline dataset name differs from expected!")
-            print(f"     This means dlt appended a timestamp or suffix")
+            print("  ⚠️  WARNING: Pipeline dataset name differs from expected!")
+            print("     This means dlt appended a timestamp or suffix")
             print(f"     Tables are in: {pipeline.dataset_name}, not {dataset_name}")
         print(f"  Destination: {pipeline.destination.destination_name if hasattr(pipeline.destination, 'destination_name') else 'bigquery'}")
         # Get project from destination or environment
@@ -531,7 +532,7 @@ private_key = """{private_key_escaped}"""
                 config = pipeline.destination.configuration()
                 if hasattr(config, 'location'):
                     location = config.location
-            except:
+            except Exception:
                 pass
         print(f"  Location: {location}")
         # Log load info details - CRITICAL for debugging dataset creation
@@ -550,9 +551,9 @@ private_key = """{private_key_escaped}"""
                     if hasattr(job, 'exception'):
                         print(f"    ⚠️  ERROR in job: {job.exception}")
             else:
-                print(f"  ⚠️  WARNING: load_info.jobs is EMPTY - dlt did not create any load jobs!")
-                print(f"     This means data was extracted but NOT loaded to BigQuery")
-                print(f"     Check if there are pending packages or if load() failed silently")
+                print("  ⚠️  WARNING: load_info.jobs is EMPTY - dlt did not create any load jobs!")
+                print("     This means data was extracted but NOT loaded to BigQuery")
+                print("     Check if there are pending packages or if load() failed silently")
         
         # Check for load errors
         if hasattr(load_info, 'loads'):
@@ -577,7 +578,7 @@ private_key = """{private_key_escaped}"""
                         if 'job_info' in load and isinstance(load['job_info'], dict):
                             if 'exception' in load['job_info']:
                                 print(f"  ⚠️  EXCEPTION in job_info: {load['job_info']['exception']}")
-        except:
+        except Exception:
             pass
     
     return dataset_name

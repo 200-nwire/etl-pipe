@@ -72,6 +72,8 @@ services:
       context: .
       dockerfile: ./Dockerfile_dagster
     entrypoint:
+      - /opt/dagster/dagster_home/dagster_entrypoint.sh
+    command:
       - dagster-webserver
       - -h
       - '0.0.0.0'
@@ -128,6 +130,8 @@ services:
       context: .
       dockerfile: ./Dockerfile_dagster
     entrypoint:
+      - /opt/dagster/dagster_home/dagster_entrypoint.sh
+    command:
       - dagster-daemon
       - run
     container_name: dagster_daemon

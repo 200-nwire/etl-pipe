@@ -3,11 +3,11 @@
 # Update imports to use relative imports for the lineage package
 
 import os
-from typing import List, Optional, Dict, Any
-from bson import ObjectId
-from datetime import datetime, date
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
 import dlt
+from bson import ObjectId
 from pymongo import MongoClient
 
 DEFAULT_MONGO_COLLECTIONS = [
@@ -145,7 +145,8 @@ def load_mongo_raw(
         else:
             db_path = base_db_path
         
-        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory, DuckDbCredentials
+        from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
+        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
         # Configure DuckDB for better concurrency
         # Note: Only use valid DuckDB pragmas
         # Valid pragmas: memory_limit, threads (but syntax is different), checkpoint_threshold

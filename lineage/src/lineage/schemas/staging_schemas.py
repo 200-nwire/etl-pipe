@@ -7,7 +7,7 @@ Staging layer prepares raw data for silver transformation by:
 - Aligning with Ed-Fi, Caliper, and xAPI standards
 """
 
-from dagster import MetadataValue, TableSchema, TableColumn
+from dagster import MetadataValue, TableColumn, TableSchema
 
 # Staging table schemas
 STAGING_TABLE_SCHEMAS = {

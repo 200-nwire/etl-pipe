@@ -121,7 +121,7 @@ def _fetch_xapi_statements(since: str | None = None) -> Iterable[Dict]:
                 try:
                     error_body = e.response.json()
                     error_detail = f" - {error_body}"
-                except:
+                except Exception:
                     error_detail = f" - {e.response.text[:200]}"
                 raise RuntimeError(
                     f"xAPI LRS returned 400 Bad Request for endpoint {endpoint}. "
@@ -165,7 +165,8 @@ def load_xapi_raw(
         db_name = os.path.basename(base_db_path).replace(".db", "_xapi.db")
         db_path = os.path.join(db_dir, db_name)
         
-        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory, DuckDbCredentials
+        from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
+        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
         # Configure DuckDB for better concurrency
         # Note: Only use valid DuckDB pragmas
         # Valid pragmas: memory_limit, threads (but syntax is different), checkpoint_threshold
