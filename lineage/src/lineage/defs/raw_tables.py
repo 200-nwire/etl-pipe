@@ -4,6 +4,7 @@ Each MongoDB collection gets its own asset for independent materialization and v
 """
 
 import os
+
 from dagster import (
     AssetExecutionContext,
     AssetKey,
@@ -12,12 +13,12 @@ from dagster import (
     asset,
 )
 
-# Import from sources module
-from lineage.sources.lms import DEFAULT_MONGO_COLLECTIONS, COLLECTION_TO_TABLE_MAP, load_mongo_raw
-from lineage.sources.lrs import load_xapi_raw
-from lineage.schemas.raw_schemas import get_raw_table_metadata
 from lineage.resources import BigQueryConfig, LRSConfig, MongoDBConfig
+from lineage.schemas.raw_schemas import get_raw_table_metadata
 
+# Import from sources module
+from lineage.sources.lms import COLLECTION_TO_TABLE_MAP, DEFAULT_MONGO_COLLECTIONS, load_mongo_raw
+from lineage.sources.lrs import load_xapi_raw
 
 COLLECTION_DESCRIPTIONS = {
     "users": "User accounts, profiles, and authentication data",

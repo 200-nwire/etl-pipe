@@ -72,7 +72,12 @@ except Exception as e:
     # If dbt manifest is missing, skip dbt component and continue
     # This happens in CI when dbt parse hasn't been run
     error_str = str(e).lower()
-    if "manifest.json" in str(e) or "manifest" in error_str or "dagsterdbtmanifestnotfound" in error_str:
+    is_manifest_error = (
+        "manifest.json" in str(e) or
+        "manifest" in error_str or
+        "dagsterdbtmanifestnotfound" in error_str
+    )
+    if is_manifest_error:
         import warnings
         warnings.warn(
             f"dbt manifest not found, skipping dbt assets: {e}. "
