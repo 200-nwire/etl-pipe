@@ -5,20 +5,19 @@ to create individual Dagster assets per dlt resource.
 """
 
 import os
-from pathlib import Path
 from typing import List, Optional
 
 import dlt
 from dlt.destinations.impl.bigquery.factory import bigquery
 
-from lineage.sources.lms import (
-    DEFAULT_MONGO_COLLECTIONS,
-    COLLECTION_TO_TABLE_MAP,
-    _get_mongo_client,
-    _convert_mongo_doc,
-)
 # LRS functions are defined inline below
 from lineage.resources import BigQueryConfig, LRSConfig, MongoDBConfig
+from lineage.sources.lms import (
+    COLLECTION_TO_TABLE_MAP,
+    DEFAULT_MONGO_COLLECTIONS,
+    _convert_mongo_doc,
+    _get_mongo_client,
+)
 
 
 def create_lms_source(
@@ -108,12 +107,23 @@ def create_lms_source(
                 if incremental.last_value:
                     from dateutil.parser import isoparse
                     try:
-                        last_value_dt = isoparse(incremental.last_value) if isinstance(incremental.last_value, str) else incremental.last_value
+                        if isinstance(incremental.last_value, str):
+                            last_value_dt = isoparse(incremental.last_value)
+                        else:
+                            last_value_dt = incremental.last_value
                     except (ValueError, TypeError):
                         from datetime import datetime
                         last_value_dt = datetime(1970, 1, 1)
                     
-                    sample = collection.find_one({}, {"modified_on": 1, "updatedAt": 1, "updated_at": 1, "modifiedAt": 1})
+                    sample = collection.find_one(
+                        {},
+                        {
+                            "modified_on": 1,
+                            "updatedAt": 1,
+                            "updated_at": 1,
+                            "modifiedAt": 1,
+                        },
+                    )
                     if sample:
                         if "modified_on" in sample:
                             query = {"modified_on": {"$gt": last_value_dt}}
@@ -148,8 +158,9 @@ def create_lrs_source(
     Returns:
         dlt source for LRS statements.
     """
-    from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
     from urllib.parse import urlparse, urlunparse
+
+    from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
     
     if lrs_config:
         endpoint = lrs_config.endpoint
@@ -519,6 +530,7 @@ finally:
     
     if _original_lrs_endpoint:
         os.environ["XAPI_LRS_ENDPOINT"] = _original_lrs_endpoint
-    elif "XAPI_LRS_ENDPOINT" in os.environ and "placeholder" in os.environ.get("XAPI_LRS_ENDPOINT", ""):
+    elif ("XAPI_LRS_ENDPOINT" in os.environ and
+          "placeholder" in os.environ.get("XAPI_LRS_ENDPOINT", "")):
         del os.environ["XAPI_LRS_ENDPOINT"]
 

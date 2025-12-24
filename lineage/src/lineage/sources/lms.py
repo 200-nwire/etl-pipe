@@ -621,6 +621,7 @@ private_key = {private_key_toml}
         print(f"✓ pipeline.load() completed")
         if load_info is None:
             print("  ⚠️  WARNING: load_info is None - load() may have failed silently")
+            print("  This could mean no data was loaded or load() returned None")
     except Exception as e:
         print(f"  ✗ ERROR in pipeline.load(): {e}")
         import traceback
@@ -628,6 +629,13 @@ private_key = {private_key_toml}
         raise
     
     # Log where data was actually loaded
+    if load_info:
+        print(f"✓ load_info object received: {type(load_info)}")
+        # Print all attributes of load_info for debugging
+        print(f"  load_info attributes: {[attr for attr in dir(load_info) if not attr.startswith('_')]}")
+    else:
+        print("  ⚠️  WARNING: load_info is None or False!")
+    
     if load_info:
         print(f"✓ dlt load completed:")
         print(f"  Pipeline dataset_name: {pipeline.dataset_name}")
@@ -705,6 +713,39 @@ private_key = {private_key_toml}
         # Check for errors
         if hasattr(load_info, 'pipeline') and hasattr(load_info.pipeline, 'default_schema'):
             print(f"  Schema: {load_info.pipeline.default_schema.name if hasattr(load_info.pipeline.default_schema, 'name') else 'N/A'}")
+    
+    # Verify table exists in BigQuery
+    print(f"\n🔍 Verifying table exists in BigQuery...")
+    try:
+        project = os.environ.get('GCP_PROJECT')
+        if project:
+            client = bq_client.Client(project=project, location=location)
+            table_ref = client.dataset(dataset_name).table(f"lms_exercise_submissions")
+            try:
+                table = client.get_table(table_ref)
+                print(f"✓ Table exists: {project}.{dataset_name}.lms_exercise_submissions")
+                print(f"  Rows: {table.num_rows:,}")
+                print(f"  Size: {table.num_bytes / (1024*1024):.2f} MB")
+                print(f"  Created: {table.created}")
+                print(f"  Modified: {table.modified}")
+            except Exception as e:
+                print(f"✗ Table NOT found: {project}.{dataset_name}.lms_exercise_submissions")
+                print(f"  Error: {e}")
+                print(f"  This means the load may have failed or the table name is different")
+                # List all tables in the dataset to help debug
+                try:
+                    dataset_ref = client.dataset(dataset_name)
+                    tables = list(client.list_tables(dataset_ref))
+                    if tables:
+                        print(f"  Available tables in {dataset_name}:")
+                        for t in tables[:10]:  # Show first 10
+                            print(f"    - {t.table_id}")
+                    else:
+                        print(f"  Dataset {dataset_name} exists but has no tables")
+                except Exception as list_error:
+                    print(f"  Could not list tables: {list_error}")
+    except Exception as e:
+        print(f"⚠ Could not verify table existence: {e}")
     
     client.close()
     

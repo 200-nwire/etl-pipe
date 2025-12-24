@@ -4,19 +4,23 @@ This component creates individual assets per dbt model (not a single multi-asset
 so each model appears separately in the Dagster UI with its own dbt icon.
 """
 
-import os
-from pathlib import Path
-from typing import Any, Optional
 from collections.abc import Iterator, Mapping
+from typing import Any, Optional
 
-from dagster import AssetExecutionContext, AssetKey, AssetSpec, MetadataValue, AutoMaterializePolicy, AutomationCondition
-from dagster_dbt import DbtCliResource, DbtProject, DbtProjectComponent, DagsterDbtTranslator
-
-from lineage.schemas.silver_schemas import get_silver_table_metadata
-from lineage.schemas.staging_schemas import get_staging_table_metadata
+from dagster import (
+    AssetExecutionContext,
+    AssetKey,
+    AssetSpec,
+    AutoMaterializePolicy,
+    AutomationCondition,
+    MetadataValue,
+)
+from dagster_dbt import DbtCliResource, DbtProject, DbtProjectComponent
 
 # Import mapping from dbt_translator
 from lineage.dbt_translator import DBT_SOURCE_TO_RAW_MAPPING
+from lineage.schemas.silver_schemas import get_silver_table_metadata
+from lineage.schemas.staging_schemas import get_staging_table_metadata
 
 
 class CustomDbtProjectComponent(DbtProjectComponent):
@@ -57,7 +61,8 @@ class CustomDbtProjectComponent(DbtProjectComponent):
         source_nodes = depends_on.get("nodes", [])
         
         model_name = resource_props.get("name", "")
-        is_staging = model_name.startswith("stg_") or "staging" in resource_props.get("schema", "").lower()
+        schema = resource_props.get("schema", "").lower()
+        is_staging = model_name.startswith("stg_") or "staging" in schema
         
         for node_id in source_nodes:
             # Check if this is a reference to another dbt model (staging -> silver dependency)
@@ -89,7 +94,9 @@ class CustomDbtProjectComponent(DbtProjectComponent):
                         if raw_key not in dependencies:
                             dependencies.append(raw_key)
                     else:
-                        raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(table_name_raw, table_name_raw)
+                        raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(
+                            table_name_raw, table_name_raw
+                        )
                         raw_key = AssetKey(["raw", f"lms_{raw_collection}"])
                         if raw_key not in dependencies:
                             dependencies.append(raw_key)
@@ -131,7 +138,9 @@ class CustomDbtProjectComponent(DbtProjectComponent):
                     if table_name_raw.startswith("lms_"):
                         raw_sources_list.append(f"raw.{table_name_raw}")
                     else:
-                        raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(table_name_raw, table_name_raw)
+                        raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(
+                            table_name_raw, table_name_raw
+                        )
                         raw_sources_list.append(f"raw.lms_{raw_collection}")
                 elif source_name == "raw_lrs":
                     raw_sources_list.append(f"raw.lrs.{table_name_raw}")

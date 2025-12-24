@@ -9,7 +9,8 @@ Allows runtime configuration of:
 
 import os
 from typing import Optional
-from dagster import ConfigurableResource, EnvVar
+
+from dagster import ConfigurableResource
 from pydantic import Field
 
 
@@ -24,11 +25,17 @@ class BigQueryConfig(ConfigurableResource):
     )
     dataset_prefix: str = Field(
         default_factory=lambda: os.environ.get("BQ_DATASET_PREFIX", "").strip(),
-        description="Dataset prefix (e.g., 'dev_' for dev_raw, dev_staging, dev_silver). Empty string for no prefix."
+        description=(
+            "Dataset prefix (e.g., 'dev_' for dev_raw, dev_staging, dev_silver). "
+            "Empty string for no prefix."
+        ),
     )
     location: str = Field(
         default_factory=lambda: os.environ.get("BQ_LOCATION", "me-west1"),
-        description="BigQuery location/region (e.g., 'me-west1' for Tel Aviv, 'US' for US). Configurable via BQ_LOCATION env var."
+        description=(
+            "BigQuery location/region (e.g., 'me-west1' for Tel Aviv, 'US' for US). "
+            "Configurable via BQ_LOCATION env var."
+        ),
     )
     
     def get_raw_dataset(self) -> str:

@@ -1,7 +1,8 @@
 """Source system assets representing external data sources."""
 
-from dagster import AssetExecutionContext, MetadataValue, Output, asset
 import os
+
+from dagster import AssetExecutionContext, MetadataValue, Output, asset
 
 
 @asset(
@@ -21,7 +22,9 @@ import os
         "source_type": MetadataValue.text("MongoDB"),
         "system": MetadataValue.text("LMS"),
         "icon": MetadataValue.text("database"),
-        "connection": MetadataValue.text(os.environ.get("MONGO_URI", "Not configured").split("@")[0] + "@..."),
+        "connection": MetadataValue.text(
+            os.environ.get("MONGO_URI", "Not configured").split("@")[0] + "@..."
+        ),
     },
 )
 def mongodb_source_asset(context: AssetExecutionContext) -> Output[str]:
@@ -35,7 +38,8 @@ def mongodb_source_asset(context: AssetExecutionContext) -> Output[str]:
             "lineage": MetadataValue.md(
                 "**Source System**: MongoDB Learning Management System\n\n"
                 "**Location**: MongoDB Atlas Cluster\n\n"
-                "**Collections**: 29 collections including users, courses, enrollments, events, etc.\n\n"
+                "**Collections**: 29 collections including users, courses, "
+                "enrollments, events, etc.\n\n"
                 "This is the primary source of truth for learner data, course structures, "
                 "and learning interactions in the LMS platform."
             ),

@@ -4,7 +4,6 @@ Each MongoDB collection gets its own asset for independent materialization and v
 """
 
 import os
-from pathlib import Path
 from dagster import (
     AssetExecutionContext,
     AssetKey,
@@ -61,7 +60,8 @@ def _create_mongo_raw_asset(collection: str):
     # Map collection name to table name (e.g., "submissions" -> "exercise_submissions")
     # Also convert hyphens to underscores for SQL compatibility
     mapped_name = COLLECTION_TO_TABLE_MAP.get(collection, collection)
-    # Convert any remaining hyphens to underscores (e.g., "project-enrollments" -> "project_enrollments")
+    # Convert any remaining hyphens to underscores
+    # (e.g., "project-enrollments" -> "project_enrollments")
     mapped_name = mapped_name.replace("-", "_")
     table_name = f"lms_{mapped_name}"
     
@@ -90,7 +90,7 @@ def _create_mongo_raw_asset(collection: str):
         """
         # Load only this specific collection
         # Pass configurable resources to load function
-        table_names = load_mongo_raw(
+        load_mongo_raw(
             collections=[collection],
             bq_config=bq_config,
             mongo_config=mongo_config,
@@ -108,7 +108,8 @@ def _create_mongo_raw_asset(collection: str):
                     f"**Source**: MongoDB LMS → `{collection}` collection\n\n"
                     f"**Destination**: `raw.{table_name}` table in {destination}\n\n"
                     f"**Description**: {desc}\n\n"
-                    f"Raw data ingested via dlt pipeline, ready for transformation in staging/silver layers."
+                    "Raw data ingested via dlt pipeline, ready for "
+                    "transformation in staging/silver layers."
                 ),
             },
         )
@@ -153,12 +154,16 @@ def lrs_raw_table_asset(
     These can be configured from the Dagster UI per-run.
     """
     # Pass configurable resources to load function
-    dataset_name = load_xapi_raw(
+    load_xapi_raw(
         bq_config=bq_config,
         lrs_config=lrs_config,
     )
     destination = os.environ.get("DLT_DESTINATION", "bigquery")
-    endpoint = lrs_config.endpoint if lrs_config.endpoint else os.environ.get("XAPI_LRS_ENDPOINT", "Not configured")
+    endpoint = (
+        lrs_config.endpoint
+        if lrs_config.endpoint
+        else os.environ.get("XAPI_LRS_ENDPOINT", "Not configured")
+    )
     
     return Output(
         value="lrs_statements",

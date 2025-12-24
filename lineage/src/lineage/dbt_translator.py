@@ -86,7 +86,8 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
         source_nodes = depends_on.get("nodes", [])
         
         model_name = resource_props.get("name", "")
-        is_staging = model_name.startswith("stg_") or "staging" in resource_props.get("schema", "").lower()
+        schema_name = resource_props.get("schema", "").lower()
+        is_staging = model_name.startswith("stg_") or "staging" in schema_name
         
         for node_id in source_nodes:
             # Check if this is a reference to another dbt model (staging -> silver dependency)
@@ -118,7 +119,8 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
                     
                 if source_name == "raw_lms":
                     # Map dbt source table names to raw asset keys
-                    # Raw assets use key format: ["raw", "lms_users"] (not ["raw", "mongo", "users"])
+                    # Raw assets use key format: ["raw", "lms_users"]
+                    # (not ["raw", "mongo", "users"])
                     if table_name.startswith("lms_"):
                         # Direct mapping: lms_users -> ["raw", "lms_users"]
                         raw_key = AssetKey(["raw", table_name])
@@ -137,7 +139,12 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
                         dependencies.append(raw_key)
         
         # Create new asset spec with dependencies and enhanced metadata
-        from dagster import AssetSpec, MetadataValue, TableSchema, AutoMaterializePolicy, AutoMaterializeRule
+        from dagster import (
+            AssetSpec,
+            AutoMaterializePolicy,
+            MetadataValue,
+        )
+
         from lineage.schemas.silver_schemas import get_silver_table_metadata
         
         # Get description from resource_props (from schema.yml) - this is more reliable
@@ -169,7 +176,9 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
                     if table_name_raw.startswith("lms_"):
                         raw_sources_list.append(f"raw.{table_name_raw}")
                     else:
-                        raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(table_name_raw, table_name_raw)
+                        raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(
+                            table_name_raw, table_name_raw
+                        )
                         raw_sources_list.append(f"raw.lms_{raw_collection}")
                 elif source_name == "raw_lrs":
                     raw_sources_list.append(f"raw.lrs.{table_name_raw}")
@@ -186,24 +195,30 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
         # The translator's parent class may already set this, but we ensure it's "dbt"
         # Note: compute_kind is set on the asset spec, not in metadata
         
-        # Always return updated asset spec with dependencies (even if empty, to ensure descriptions are set)
+        # Always return updated asset spec with dependencies
+        # (even if empty, to ensure descriptions are set)
         # Note: deps must be a frozenset for AssetSpec
         # Auto-materialization: dbt assets should materialize when raw assets update
-        # Using AutomationCondition.eager() (recommended) instead of deprecated AutoMaterializePolicy.eager()
-        from dagster import AutoMaterializePolicy, AutomationCondition
+        # Using AutomationCondition.eager() (recommended) instead of
+        # deprecated AutoMaterializePolicy.eager()
+        from dagster import AutomationCondition
         
         # Create eager auto-materialization policy
-        # This ensures dbt models materialize automatically when their upstream raw assets are updated
+        # This ensures dbt models materialize automatically when their
+        # upstream raw assets are updated
         eager_condition = AutomationCondition.eager()
         auto_materialize_policy = AutoMaterializePolicy.from_automation_condition(eager_condition)
         
-        # Note: compute_kind is set via get_compute_kind() method which is called by @dbt_assets decorator
-        # The @dbt_assets decorator uses the translator's get_compute_kind() to set compute_kind on the asset
+        # Note: compute_kind is set via get_compute_kind() method which is
+        # called by @dbt_assets decorator
+        # The @dbt_assets decorator uses the translator's get_compute_kind()
+        # to set compute_kind on the asset
         # We don't need to set it in AssetSpec - it's handled by the decorator
         
         return AssetSpec(
             key=asset_spec.key,
-            deps=frozenset(dependencies),  # This connects silver to raw in lineage - must be frozenset
+            # This connects silver to raw in lineage - must be frozenset
+            deps=frozenset(dependencies),
             group_name=self.get_group_name(resource_props),  # Use our custom group name logic
             description=description,  # Use description from schema.yml
             metadata=metadata,
@@ -225,8 +240,10 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
         # Only create asset keys for models, not sources
         # Sources are just references and shouldn't create duplicate assets
         if resource_type == "model":
-            # Check if it's a staging model (starts with stg_ or schema contains staging)
-            if name.startswith("stg_") or "staging" in schema.lower():
+            # Check if it's a staging model
+            # (starts with stg_ or schema contains staging)
+            schema_lower = schema.lower()
+            if name.startswith("stg_") or "staging" in schema_lower:
                 return AssetKey(["staging", name])
             else:
                 return AssetKey(["silver", name])
@@ -242,7 +259,8 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
             name = dbt_resource_props.get("name", "")
             schema = dbt_resource_props.get("schema", "")
             # Check if it's a staging model
-            if name.startswith("stg_") or "staging" in schema.lower():
+            schema_lower = schema.lower()
+            if name.startswith("stg_") or "staging" in schema_lower:
                 return "staging"
             else:
                 return "silver"
@@ -270,8 +288,13 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
                         if source_name == "raw_lms":
                             # Table names now have lms_ prefix (e.g., lms_users)
                             # Remove prefix to get collection name for mapping
-                            collection_name = table_name.replace("lms_", "") if table_name.startswith("lms_") else table_name
-                            raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(collection_name, collection_name)
+                            if table_name.startswith("lms_"):
+                                collection_name = table_name.replace("lms_", "")
+                            else:
+                                collection_name = table_name
+                            raw_collection = DBT_SOURCE_TO_RAW_MAPPING.get(
+                                collection_name, collection_name
+                            )
                             raw_sources.append(f"`raw.lms_{raw_collection}`")
                         elif source_name == "raw_lrs":
                             raw_sources.append(f"`raw.lrs.{table_name}`")
@@ -280,7 +303,9 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
             if raw_sources:
                 lineage_note = f"\n\n**Raw Sources**: {', '.join(raw_sources)}"
             
-            return f"{description}{lineage_note}" if description else f"Silver model: {name}{lineage_note}"
+            if description:
+                return f"{description}{lineage_note}"
+            return f"Silver model: {name}{lineage_note}"
         
         return description or super().get_description(dbt_resource_props)
     
@@ -295,7 +320,10 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
         for the dbt icon to appear in the UI.
         """
         # Get base metadata from parent
-        metadata = super().get_metadata(dbt_resource_props) if hasattr(super(), 'get_metadata') else {}
+        if hasattr(super(), 'get_metadata'):
+            metadata = super().get_metadata(dbt_resource_props)
+        else:
+            metadata = {}
         
         # Ensure compute_kind is in metadata for dbt models
         resource_type = dbt_resource_props.get("resource_type")
@@ -309,7 +337,8 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
             
             # Add staging schema metadata if this is a staging model
             model_name = dbt_resource_props.get("name", "")
-            if model_name.startswith("stg_") or "staging" in dbt_resource_props.get("schema", "").lower():
+            schema = dbt_resource_props.get("schema", "").lower()
+            if model_name.startswith("stg_") or "staging" in schema:
                 from lineage.schemas.staging_schemas import get_staging_table_metadata
                 staging_metadata = get_staging_table_metadata(model_name)
                 # staging_metadata contains MetadataValue objects - merge them properly

@@ -5,7 +5,10 @@ All assets are imported here to ensure they're registered.
 """
 
 # Import assets to register them with load_from_defs_folder
-from lineage.defs.sources import mongodb_source_asset, xapi_source_asset
+from lineage.defs.sources import (  # noqa: F401
+    mongodb_source_asset,
+    xapi_source_asset,
+)
 # NOTE: raw_tables assets are now created by dlt component (dlt_loads/defs.yaml)
 # Removing raw_tables imports to avoid duplicates
 # from lineage.defs.raw_tables import lms_raw_assets, lrs_raw_table_asset

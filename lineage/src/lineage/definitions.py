@@ -5,9 +5,11 @@ Resources are defined here and merged with discovered assets.
 """
 
 import os
+import shutil
+from collections import OrderedDict
 from pathlib import Path
 
-from dagster import Definitions, load_from_defs_folder
+from dagster import AssetsDefinition, Definitions, load_from_defs_folder
 from dagster_dbt import DbtCliResource
 from dotenv import load_dotenv
 
@@ -41,7 +43,6 @@ dbt_target = os.environ.get("DBT_TARGET", "dev")
 DBT_PROJECT_PATH = str(Path(__file__).parent.parent.parent.parent / "dbt")
 
 # Find dbt executable
-import shutil
 dbt_executable = shutil.which("dbt")
 if not dbt_executable:
     # Try in venv
@@ -64,7 +65,36 @@ dbt_resource = DbtCliResource(
 # Load assets automatically from defs/ folder
 # load_from_defs_folder returns a Definitions object, but we extract assets/resources
 # immediately to avoid having multiple Definitions objects at module scope
-_discovered_defs = load_from_defs_folder(path_within_project=Path(__file__).parent / "defs")
+# Handle missing dbt manifest gracefully (e.g., in CI where dbt parse hasn't run)
+try:
+    _discovered_defs = load_from_defs_folder(path_within_project=Path(__file__).parent / "defs")
+except Exception as e:
+    # If dbt manifest is missing, skip dbt component and continue
+    # This happens in CI when dbt parse hasn't been run
+    error_str = str(e).lower()
+    if "manifest.json" in str(e) or "manifest" in error_str or "dagsterdbtmanifestnotfound" in error_str:
+        import warnings
+        warnings.warn(
+            f"dbt manifest not found, skipping dbt assets: {e}. "
+            "Run 'dbt parse' to generate manifest.json if dbt assets are needed."
+        )
+        # Load from defs folder but exclude dbt_models directory
+        defs_path = Path(__file__).parent / "defs"
+        # Temporarily rename dbt_models to skip it
+        dbt_models_path = defs_path / "dbt_models"
+        dbt_models_backup = None
+        if dbt_models_path.exists():
+            dbt_models_backup = defs_path / "dbt_models.bak"
+            dbt_models_path.rename(dbt_models_backup)
+        try:
+            _discovered_defs = load_from_defs_folder(path_within_project=defs_path)
+        finally:
+            # Restore dbt_models directory
+            if dbt_models_backup and dbt_models_backup.exists():
+                dbt_models_backup.rename(dbt_models_path)
+    else:
+        # Re-raise if it's a different error
+        raise
 
 # NOTE: dbt assets are now loaded via DbtProjectComponent in defs/dbt_models/defs.yaml
 # This creates individual assets per dbt model (not a single multi-asset)
@@ -77,7 +107,6 @@ del _discovered_defs
 # Filter out duplicate source assets from dlt component
 # The dlt component creates both source assets (mongo_source_lms_*) and raw assets (raw/lms_*)
 # We only need the raw assets - the source assets are duplicates
-from dagster import AssetsDefinition, AssetKey
 
 def _should_filter_asset(asset_def: AssetsDefinition) -> bool:
     """Check if an asset should be filtered out.
@@ -91,7 +120,10 @@ def _should_filter_asset(asset_def: AssetsDefinition) -> bool:
     # Get asset key(s) - single asset has 'key', multi-asset has 'keys'
     try:
         if hasattr(asset_def, 'keys') and asset_def.keys:
-            keys = list(asset_def.keys) if isinstance(asset_def.keys, (set, frozenset)) else list(asset_def.keys)
+            if isinstance(asset_def.keys, (set, frozenset)):
+                keys = list(asset_def.keys)
+            else:
+                keys = list(asset_def.keys)
         else:
             # Single asset - use 'key' attribute
             keys = [asset_def.key]
@@ -115,7 +147,6 @@ def _should_filter_asset(asset_def: AssetsDefinition) -> bool:
 
 # Filter out unwanted assets (duplicate source assets and test assets)
 # Also deduplicate by asset key to prevent duplicates
-from collections import OrderedDict
 seen_keys = OrderedDict()
 filtered_assets = []
 for asset in discovered_assets:
@@ -160,7 +191,10 @@ def _set_asset_group(asset_def: AssetsDefinition) -> AssetsDefinition:
     """
     # Get asset keys - convert to list if it's a set
     if hasattr(asset_def, 'keys'):
-        keys = list(asset_def.keys) if isinstance(asset_def.keys, (set, frozenset)) else list(asset_def.keys)
+        if isinstance(asset_def.keys, (set, frozenset)):
+            keys = list(asset_def.keys)
+        else:
+            keys = list(asset_def.keys)
     else:
         keys = [asset_def.key]
     
@@ -184,7 +218,8 @@ def _set_asset_group(asset_def: AssetsDefinition) -> AssetsDefinition:
                 # dlt component creates source assets with keys like 'mongo_source_lms_rules'
                 # or 'rest_api_lrs_statements'
                 group_names_by_key[key] = "sources"
-            elif "source" in key_str.lower() and first_part not in ["raw", "silver", "staging", "test_lin1"]:
+            elif ("source" in key_str.lower() and
+                  first_part not in ["raw", "silver", "staging", "test_lin1"]):
                 # Catch any other source patterns (but not test assets)
                 group_names_by_key[key] = "sources"
             # Skip test_* assets - leave them in default

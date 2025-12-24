@@ -1,9 +1,9 @@
 """Schedules for automatic data ingestion."""
 
 from dagster import (
-    ScheduleDefinition,
-    DefaultScheduleStatus,
     AssetSelection,
+    DefaultScheduleStatus,
+    ScheduleDefinition,
     define_asset_job,
 )
 
@@ -17,7 +17,10 @@ from dagster import (
 raw_ingestion_job = define_asset_job(
     name="raw_ingestion_job",
     selection=AssetSelection.all(),  # Select all assets - user can filter in UI
-    description="Ingest all raw data from MongoDB LMS and xAPI LRS via dlt component. Filter to raw assets in UI.",
+    description=(
+        "Ingest all raw data from MongoDB LMS and xAPI LRS via dlt component. "
+        "Filter to raw assets in UI."
+    ),
 )
 
 # Schedule to run every 15 minutes (disabled by default until we can properly select raw assets)
@@ -25,6 +28,7 @@ raw_ingestion_schedule = ScheduleDefinition(
     name="raw_ingestion_schedule",
     job=raw_ingestion_job,
     cron_schedule="*/15 * * * *",  # Every 15 minutes
-    default_status=DefaultScheduleStatus.STOPPED,  # Disabled until proper asset selection is configured
+    # Disabled until proper asset selection is configured
+    default_status=DefaultScheduleStatus.STOPPED,
     description="Automatically ingest raw data from sources every 15 minutes",
 )

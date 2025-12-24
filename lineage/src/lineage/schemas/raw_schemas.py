@@ -1,6 +1,6 @@
 """Schema definitions for raw tables with field metadata for Dagster UI."""
 
-from dagster import MetadataValue, TableSchema, TableColumn
+from dagster import MetadataValue, TableColumn, TableSchema
 
 # Raw table schemas with field definitions
 RAW_TABLE_SCHEMAS = {
