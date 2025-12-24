@@ -1,20 +1,24 @@
 {{ config(materialized='table') }}
 
+-- Transform learning signals from xAPI statements (via staging)
+-- Signals are computed analytics derived from events
+-- Note: Signal-specific fields not directly available in xAPI, would need to be computed
 select
-  cast(learning_signal_id as string) as learning_signal_id,
-  cast(time_id as int) as time_id,
-  cast(signal_timestamp as timestamp) as signal_timestamp,
-  cast(signal_type_key as string) as signal_type_key,
-  cast(learner_id as string) as learner_id,
-  cast(organization_id as string) as organization_id,
-  cast(course_id as string) as course_id,
-  cast(section_id as string) as section_id,
-  cast(skill_id as string) as skill_id,
-  cast(content_id as string) as content_id,
-  cast(session_id as string) as session_id,
-  cast(signal_value as {{ float_type() }}) as signal_value,
-  value_explanation,
-  cast(window_start as timestamp) as window_start,
-  cast(window_end as timestamp) as window_end,
-  metadata
-from {{ source('raw_mongo', 'fact_learning_signal') }}
+  cast(event_id as string) as learning_signal_id,
+  cast(null as int) as time_id,  -- TODO: Join with dim_time
+  cast(event_timestamp as timestamp) as signal_timestamp,
+  cast(null as string) as signal_type_key,  -- Not available in xAPI
+  cast(userId as string) as learner_id,
+  cast(schoolId as string) as organization_id,
+  cast(courseId as string) as course_id,
+  cast(sectionId as string) as section_id,
+  cast(skillId as string) as skill_id,
+  cast(contentId as string) as content_id,
+  cast(sessionId as string) as session_id,
+  cast(null as float) as signal_value,  -- Not available in xAPI
+  cast(null as string) as value_explanation,  -- Not available in xAPI
+  cast(null as timestamp) as window_start,  -- Not available in xAPI
+  cast(null as timestamp) as window_end,  -- Not available in xAPI
+  cast(metadata as string) as metadata
+from {{ ref('stg_lrs_events') }}
+limit 0  -- Signals not directly available in xAPI, return empty result

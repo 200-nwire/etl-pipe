@@ -1,0 +1,64 @@
+# Dagster instance configuration
+# This file configures the Dagster instance (webserver and daemon)
+
+storage:
+  postgres:
+    postgres_db:
+      username:
+        env: DAGSTER_POSTGRES_USER
+      password:
+        env: DAGSTER_POSTGRES_PASSWORD
+      hostname:
+        env: DAGSTER_POSTGRES_HOST
+      db_name:
+        env: DAGSTER_POSTGRES_DB
+      port:
+        env: DAGSTER_POSTGRES_PORT
+
+run_launcher:
+  class: DockerRunLauncher
+  module: dagster_docker
+  config:
+    image: ${DAGSTER_CURRENT_IMAGE:-dagster_user_code_image}
+    env_vars:
+      # Pass through all required environment variables to run containers
+      # Note: DAGSTER_CURRENT_IMAGE is not needed here - it's already used in the 'image' config above
+      
+      # Dagster PostgreSQL connection (required for instance config)
+      - DAGSTER_POSTGRES_USER
+      - DAGSTER_POSTGRES_PASSWORD
+      - DAGSTER_POSTGRES_HOST
+      - DAGSTER_POSTGRES_DB
+      - DAGSTER_POSTGRES_PORT
+      
+      # Application environment variables
+      - MONGO_URI
+      - GCP_PROJECT
+      - GOOGLE_APPLICATION_CREDENTIALS
+      - BQ_LOCATION
+      - BQ_DATASET_PREFIX
+      - XAPI_LRS_ENDPOINT
+      - XAPI_AUTH_TOKEN
+      - DBT_PROFILES_DIR
+      - DBT_TARGET
+      - PYTHONPATH
+    container_kwargs:
+      # Shared storage for IO manager
+      volumes:
+        - /tmp/io_manager_storage:/tmp/io_manager_storage
+        # Mount GCP credentials file for BigQuery access in run containers
+        # Uses GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH from daemon environment (set in docker-compose.yml)
+        # Container path is always /tmp/gcp_credentials.json
+        # Note: This will be replaced by configure_dagster.py script at startup
+        - PLACEHOLDER_GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH:/tmp/gcp_credentials.json:ro
+    # Network configuration - must match docker-compose network name
+    # Note: 'network' cannot be in container_kwargs, use 'networks' instead
+    networks:
+      - dagster_network
+
+run_coordinator:
+  class: QueuedRunCoordinator
+  module: dagster.core.run_coordinator
+  config:
+    max_concurrent_runs: 10
+

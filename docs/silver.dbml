@@ -1,0 +1,989 @@
+///////////////////////////////////////////////////////
+// SILVER: Learning Analytics Warehouse Schema (Best-practice)
+// Normalized from xAPI + Caliper (events) + Ed-Fi style ops (rosters, terms, assessments)
+// Target: BI + ML feature store + auditability (keep raw payload JSON on facts)
+///////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////
+// CORE CONFORMED DIMENSIONS
+///////////////////////////////////////////////////////
+
+Table dim_date {
+  date_id int [pk, note: 'Surrogate key for calendar date']
+  date date [not null, unique, note: 'Calendar date (local/org-resolved or UTC date policy)']
+  year int [not null]
+  month int [not null, note: '1-12']
+  day int [not null, note: '1-31']
+  quarter int [not null, note: '1-4']
+  week_of_year int [not null, note: 'ISO week number']
+  day_of_week int [not null, note: '1-7']
+  day_name varchar(16) [not null]
+  is_weekend boolean [not null]
+  is_holiday boolean [not null, default: false]
+  holiday_name varchar(128)
+
+  Note: 'Date dimension for reporting. Facts keep exact UTC timestamps; date_id is derived for slicing.'
+}
+
+Table dim_time_of_day {
+  time_of_day_id int [pk, note: 'Surrogate key for time-of-day bucket']
+  hour int [not null, note: '0-23']
+  minute int [not null, note: '0-59']
+  second int [not null, note: '0-59']
+  label varchar(16) [not null, note: 'HH:MM:SS']
+
+  Indexes {
+    (hour, minute, second) [unique]
+  }
+
+  Note: 'Optional time-of-day dimension for diurnal analysis without exploding date dim.'
+}
+
+Table dim_organization {
+  organization_id varchar(64) [pk, note: 'Stable organization identifier across platform']
+  source_system varchar(64)
+  source_organization_key varchar(128)
+  name varchar(256) [not null]
+  organization_type varchar(64) [note: 'district, school, campus, provider, etc.']
+  parent_organization_id varchar(64) [note: 'Hierarchy root-up']
+  country_code varchar(2)
+  region varchar(128)
+  timezone varchar(64) [note: 'IANA default timezone']
+  external_ref_uri varchar(512) [note: 'Optional canonical URI for interoperability']
+  metadata text [note: 'JSON org attributes']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Districts, schools, campuses, providers.'
+}
+
+Table dim_person {
+  person_id varchar(64) [pk, note: 'Stable person ID across systems (learner/teacher/staff)']
+  source_system varchar(64)
+  source_person_key varchar(128)
+  external_user_id varchar(128) [note: 'LMS/SIS key for joins to source']
+  person_type varchar(32) [not null, note: 'LEARNER | TEACHER | STAFF | UNKNOWN']
+  full_name varchar(256) [note: 'Avoid for strict PII use cases']
+  given_name varchar(128)
+  family_name varchar(128)
+  primary_language varchar(16)
+  secondary_language varchar(16)
+  birth_date date
+  home_organization_id varchar(64) [note: 'Home org (school/campus)']
+  grade_level varchar(64) [note: 'For learners']
+  employment_type varchar(64) [note: 'For staff/teachers']
+  demographics text [note: 'JSON; non-identifying as allowed']
+  enrollment_status varchar(64) [note: 'Active/withdrawn/etc (learner-oriented)']
+  metadata text [note: 'JSON from HR/SIS/LMS']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Conformed person dim to avoid duplicated learner/teacher dimensions. Use role/membership bridges for context.'
+}
+
+Table dim_academic_term {
+  term_id varchar(64) [pk, note: 'Stable term ID']
+  source_system varchar(64)
+  source_term_key varchar(128)
+  organization_id varchar(64) [note: 'Owning org (district/school)']
+  school_year varchar(16) [note: 'e.g., 2025-2026']
+  term_type varchar(64) [note: 'semester, quarter, trimester, summer, etc.']
+  name varchar(256)
+  start_date date
+  end_date date
+  metadata text [note: 'JSON: calendars, schedules, etc.']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Academic calendar/terms for Ed-Fi-aligned slicing and cohort attribution.'
+}
+
+Table dim_course {
+  course_id varchar(64) [pk, note: 'Logical course definition']
+  source_system varchar(64)
+  source_course_key varchar(128)
+  organization_id varchar(64)
+  code varchar(64)
+  name varchar(256) [not null]
+  subject varchar(128)
+  grade_band varchar(64)
+  academic_year varchar(16)
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Course catalog / planned instruction.'
+}
+
+Table dim_section {
+  section_id varchar(64) [pk, note: 'Concrete class/section offering']
+  source_system varchar(64)
+  source_section_key varchar(128)
+  organization_id varchar(64)
+  course_id varchar(64)
+  term_id varchar(64) [note: 'Academic term for this section']
+  code varchar(64)
+  name varchar(256)
+  start_date date
+  end_date date
+  delivery_mode varchar(64) [note: 'online, blended, in-person']
+  metadata text [note: 'Schedules, groups, settings']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Specific teaching groups used for rosters and context.'
+}
+
+Table dim_platform {
+  platform_id varchar(64) [pk, note: 'Platform or product id (LMS, Player, SIS gateway)']
+  name varchar(256) [not null]
+  vendor varchar(256)
+  version varchar(64)
+  environment varchar(64) [note: 'dev/stg/prod/district']
+  metadata text
+
+  Note: 'Sending/hosting platform dimension.'
+}
+
+Table dim_lti_tool {
+  lti_tool_id varchar(64) [pk]
+  platform_id varchar(64)
+  issuer varchar(256)
+  client_id varchar(256)
+  name varchar(256)
+  deployment_id varchar(256)
+  metadata text
+
+  Note: 'LTI tool integration context.'
+}
+
+Table dim_ai_tool {
+  ai_tool_id varchar(64) [pk]
+  name varchar(256) [not null]
+  provider varchar(256)
+  model_name varchar(256)
+  capability_type varchar(128) [note: 'tutor/feedback/generator/etc.']
+  metadata text
+
+  Note: 'AI assistant/bot configuration.'
+}
+
+Table dim_device {
+  device_id varchar(64) [pk, note: 'Stable device signature id (hashed/fingerprinted)']
+  device_type varchar(64) [note: 'desktop/tablet/phone']
+  os varchar(64)
+  browser varchar(64)
+  user_agent varchar(512)
+  metadata text
+
+  Note: 'Device dimension for experience, performance, abuse analytics.'
+}
+
+Table dim_content {
+  content_id varchar(64) [pk, note: 'Stable content object id']
+  source_system varchar(64)
+  source_content_key varchar(128)
+  owner_organization_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  content_type varchar(64) [note: 'activity/resource/video/reading/etc.']
+  interaction_type varchar(64) [note: 'choice/numeric/essay/dragdrop/etc.']
+  title varchar(256)
+  description text
+  difficulty_estimate float
+  metadata text [note: 'JSON tags/media/config']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Content/activity objects; not necessarily assessment items.'
+}
+
+Table dim_assessment {
+  assessment_id varchar(64) [pk, note: 'Logical assessment/test container']
+  source_system varchar(64)
+  source_assessment_key varchar(128)
+  organization_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  term_id varchar(64)
+  content_id varchar(64) [note: 'Optional content container']
+  title varchar(256)
+  description text
+  assessment_type varchar(64) [note: 'quiz/exam/formative/summative/placement']
+  max_score float
+  passing_score float
+  grading_scheme varchar(64) [note: 'percent/points/mastery-bands/etc.']
+  metadata text [note: 'Timing/policies/question-set']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Assessment container (Ed-Fi-ish Assessment).'
+}
+
+Table dim_assessment_item {
+  item_id varchar(64) [pk, note: 'Atomic assessment item/question id']
+  source_system varchar(64)
+  source_item_key varchar(128)
+  assessment_id varchar(64) [note: 'Primary owning assessment (optional if shared bank)']
+  content_id varchar(64) [note: 'Optional link to content object if aligned']
+  item_type varchar(64) [note: 'mcq/short-answer/essay/etc.']
+  interaction_type varchar(64)
+  prompt_summary text [note: 'Short safe summary; avoid full copyrighted item text']
+  difficulty_estimate float
+  max_score float
+  metadata text [note: 'JSON: rubrics, options ids, bank tags']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Item dimension for item analysis, psychometrics, and mastery modeling.'
+}
+
+Table dim_standard {
+  standard_id varchar(64) [pk, note: 'Curriculum standard / framework node']
+  framework varchar(128) [note: 'e.g., local curriculum, CCSS, custom']
+  external_code varchar(128)
+  name varchar(256)
+  description text
+  grade_band varchar(64)
+  subject varchar(128)
+  parent_standard_id varchar(64)
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Standards/outcomes graph, Ed-Fi/analytics friendly.'
+}
+
+Table dim_skill {
+  skill_id varchar(64) [pk, note: 'Internal skill/competency id']
+  external_skill_code varchar(128)
+  name varchar(256) [not null]
+  description text
+  domain varchar(128)
+  strand varchar(128)
+  level varchar(64)
+  parent_skill_id varchar(64)
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Skill graph used for mastery, recommendations.'
+}
+
+Table dim_session {
+  session_id varchar(64) [pk, note: 'Stable session id (learning session / experience window)']
+  source_system varchar(64)
+  source_session_key varchar(128)
+  platform_id varchar(64)
+  lti_tool_id varchar(64)
+  term_id varchar(64)
+  organization_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  person_id varchar(64) [note: 'Primary person in session, if single-user session']
+  device_id varchar(64)
+  ip_hash varchar(128)
+  registration_id varchar(128) [note: 'xAPI registration / cmi5 registration / LTI session link']
+  session_start_utc timestamp
+  session_end_utc timestamp
+  session_duration_seconds int
+  metadata text [note: 'JSON flags: experiments, launch params, etc.']
+
+  Note: 'Session dimension for grouping events. Keep exact timestamps in facts.'
+}
+
+///////////////////////////////////////////////////////
+// REFERENCE / CODE TABLES (VOCAB NORMALIZATION)
+///////////////////////////////////////////////////////
+
+Table ref_event_type {
+  event_type_key varchar(64) [pk, note: 'Coarse event bucket']
+  description varchar(256)
+
+  Note: 'view/submit/hint/navigate/launch/grade/etc.'
+}
+
+Table ref_verb {
+  verb_id int [pk, note: 'Surrogate key for normalized verb row']
+  iri varchar(512) [not null, unique, note: 'Canonical IRI/ID (xAPI/Caliper vocab)']
+  short_code varchar(64) [note: 'Local code: ANSWERED/COMPLETED/etc.']
+  description varchar(256)
+
+  Note: 'Normalized verb vocabulary for xAPI/Caliper style actions.'
+}
+
+Table ref_object_type {
+  object_type_key varchar(64) [pk, note: 'Normalized object type']
+  description varchar(256)
+
+  Note: 'ContentItem, AssessmentItem, Attempt, Annotation, LineItem, etc.'
+}
+
+Table ref_membership_role {
+  role_key varchar(64) [pk]
+  description varchar(256)
+
+  Note: 'Learner, Instructor, TeachingAssistant, Proctor, Observer, etc.'
+}
+
+Table ref_signal_type {
+  signal_type_key varchar(64) [pk]
+  description varchar(256)
+  category varchar(128)
+
+  Note: 'mastery, risk, engagement, confusion, momentum, etc.'
+}
+
+///////////////////////////////////////////////////////
+// BRIDGES / ASSOCIATIONS (ED-FI-STYLE RELATIONSHIPS)
+///////////////////////////////////////////////////////
+
+Table bridge_section_membership {
+  section_membership_id varchar(64) [pk, note: 'Stable membership association id']
+  source_system varchar(64)
+  source_membership_key varchar(128)
+  section_id varchar(64) [not null]
+  person_id varchar(64) [not null]
+  role_key varchar(64) [not null, note: 'From ref_membership_role']
+  begin_date date
+  end_date date
+  status varchar(64) [note: 'active/withdrawn/completed']
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (section_id, person_id, role_key, begin_date) [unique]
+  }
+
+  Note: 'Roster/assignment bridge: replaces StudentSectionAssociation + StaffSectionAssociation patterns.'
+}
+
+Table bridge_course_membership {
+  course_membership_id varchar(64) [pk]
+  source_system varchar(64)
+  source_membership_key varchar(128)
+  course_id varchar(64) [not null]
+  person_id varchar(64) [not null]
+  role_key varchar(64) [not null]
+  begin_date date
+  end_date date
+  status varchar(64)
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Optional: membership at course level when sections are not available.'
+}
+
+Table bridge_content_skill_map {
+  content_skill_map_id varchar(64) [pk]
+  content_id varchar(64) [not null]
+  skill_id varchar(64) [not null]
+  weight float [note: 'Strength of mapping (0-1)']
+  source varchar(64) [note: 'authoring/manual/auto']
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (content_id, skill_id) [unique]
+  }
+
+  Note: 'Maps content objects to skills for tagging and inference.'
+}
+
+Table bridge_item_skill_map {
+  item_skill_map_id varchar(64) [pk]
+  item_id varchar(64) [not null]
+  skill_id varchar(64) [not null]
+  weight float
+  source varchar(64)
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (item_id, skill_id) [unique]
+  }
+
+  Note: 'Maps assessment items to skills.'
+}
+
+Table bridge_skill_standard_map {
+  skill_standard_map_id varchar(64) [pk]
+  skill_id varchar(64) [not null]
+  standard_id varchar(64) [not null]
+  weight float
+  source varchar(64)
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (skill_id, standard_id) [unique]
+  }
+
+  Note: 'Connects internal skills to external curriculum standards.'
+}
+
+Table bridge_assessment_item_map {
+  assessment_item_map_id varchar(64) [pk]
+  assessment_id varchar(64) [not null]
+  item_id varchar(64) [not null]
+  position int [note: 'Order within the assessment attempt']
+  points float [note: 'Points allocated to item within this assessment']
+  metadata text
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (assessment_id, item_id) [unique]
+  }
+
+  Note: 'Assessment structure mapping; supports item analysis and blueprinting.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: ATOMIC EVENTS (xAPI/Caliper Unified)
+///////////////////////////////////////////////////////
+
+Table fact_learning_event {
+  event_id varchar(64) [pk, note: 'Stable identifier for the event row']
+  source_system varchar(64)
+  source_event_key varchar(128) [note: 'Raw statement/event id']
+  event_timestamp_utc timestamp [not null, note: 'Exact timestamp in UTC']
+  date_id int [not null, note: 'Derived date for slicing']
+  time_of_day_id int [note: 'Optional bucket']
+  timezone varchar(64) [note: 'Timezone used for local breakdown if applicable']
+
+  // Normalized action
+  event_type_key varchar(64) [note: 'Coarse bucket']
+  verb_id int [note: 'Normalized verb']
+  verb_raw varchar(512) [note: 'Raw verb id/iri if not mapped']
+
+  // Actor
+  person_id varchar(64) [note: 'Primary actor person']
+  actor_type varchar(64) [note: 'learner/teacher/system/ai']
+  impersonated_person_id varchar(64) [note: 'If acting-on-behalf-of']
+
+  // Context
+  session_id varchar(64)
+  platform_id varchar(64)
+  lti_tool_id varchar(64)
+  ai_tool_id varchar(64)
+  device_id varchar(64)
+
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64) [note: 'Optional link to bridge_section_membership.section_membership_id']
+
+  // Object / Target / Generated (Caliper + xAPI friendly)
+  object_type_key varchar(64) [note: 'ref_object_type: ContentItem/AssessmentItem/etc']
+  object_id varchar(64) [note: 'FK by type: content_id/item_id/attempt_id/etc']
+  target_type_key varchar(64)
+  target_id varchar(64)
+  generated_type_key varchar(64)
+  generated_id varchar(64)
+
+  // Canonical content/assessment pointers (most common analytic joins)
+  content_id varchar(64)
+  assessment_id varchar(64)
+  item_id varchar(64)
+  skill_id varchar(64)
+  standard_id varchar(64)
+
+  // xAPI Result-ish normalized fields
+  attempt_number int
+  success boolean
+  completion boolean
+  is_correct boolean
+  score_raw float
+  score_min float
+  score_max float
+  score_scaled float
+  score_percent float
+  response text [note: 'Raw response (hashed/anonymized as needed)']
+  duration_seconds int [note: 'If event includes duration']
+  latency_ms int
+
+  // Audit / payload retention
+  event_source text [note: 'JSON original envelope (xAPI statement / Caliper event)']
+  metadata text [note: 'JSON derived / extra fields']
+
+  Note: 'Unified atomic event fact. Supports Caliper: actor/action/object/target/generated/group, and xAPI: actor/verb/object/context/result.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: ASSESSMENT ATTEMPTS + ITEM RESPONSES
+///////////////////////////////////////////////////////
+
+Table fact_assessment_attempt {
+  assessment_attempt_id varchar(64) [pk, note: 'Stable attempt id']
+  source_system varchar(64)
+  source_attempt_key varchar(128)
+
+  attempt_start_utc timestamp
+  attempt_end_utc timestamp
+  date_id int [not null, note: 'At completion/end for slicing']
+  time_of_day_id int
+
+  person_id varchar(64) [not null, note: 'Learner/person taking the assessment']
+  session_id varchar(64)
+  platform_id varchar(64)
+  device_id varchar(64)
+
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  assessment_id varchar(64) [not null]
+  content_id varchar(64) [note: 'If assessment is embedded in content container']
+
+  attempt_number int
+  item_count int
+  completed_item_count int
+
+  score_raw float
+  score_scaled float
+  score_percent float
+  passed boolean
+
+  metadata text [note: 'JSON: accommodations, proctoring, retake reason']
+  source_payload text [note: 'JSON of raw attempt record']
+
+  Note: 'Roll-up per assessment execution. Connects naturally to item responses + event stream.'
+}
+
+Table fact_item_response {
+  item_response_id varchar(64) [pk, note: 'Stable id for item-level response within an attempt']
+  source_system varchar(64)
+  source_response_key varchar(128)
+
+  response_timestamp_utc timestamp [not null]
+  date_id int [not null]
+  time_of_day_id int
+
+  assessment_attempt_id varchar(64) [not null]
+  person_id varchar(64) [not null]
+  session_id varchar(64)
+
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  assessment_id varchar(64)
+  item_id varchar(64) [not null]
+  content_id varchar(64)
+  skill_id varchar(64)
+  standard_id varchar(64)
+
+  attempt_number int
+  item_position int
+  response text
+  is_correct boolean
+  score_raw float
+  score_scaled float
+  latency_ms int
+  hints_used int
+  metadata text
+  source_payload text
+
+  Note: 'Best-practice grain for item analysis (difficulty, discrimination proxies), mastery modeling, and remediation.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: LEARNING SIGNALS / MASTERY / RISK (Computed)
+///////////////////////////////////////////////////////
+
+Table fact_learning_signal {
+  learning_signal_id varchar(64) [pk]
+  signal_timestamp_utc timestamp [not null]
+  date_id int [not null]
+  time_of_day_id int
+
+  signal_type_key varchar(64) [not null]
+  person_id varchar(64) [not null]
+
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  session_id varchar(64)
+  content_id varchar(64)
+  assessment_id varchar(64)
+  item_id varchar(64)
+  skill_id varchar(64)
+  standard_id varchar(64)
+
+  signal_value float
+  value_explanation text
+  window_start_utc timestamp
+  window_end_utc timestamp
+
+  algorithm_name varchar(128)
+  algorithm_version varchar(64)
+  metadata text [note: 'JSON: features, hyperparams, confidence, provenance']
+  source_payload text [note: 'JSON: raw aggregate inputs if needed']
+
+  Note: 'Computed signals used for adaptivity, dashboards, and early warning.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: VARIANT / EXPERIMENT EXPOSURES (A/B, Adaptive)
+///////////////////////////////////////////////////////
+
+Table fact_variant_exposure {
+  variant_exposure_id varchar(64) [pk]
+  exposure_timestamp_utc timestamp [not null]
+  date_id int [not null]
+  time_of_day_id int
+
+  person_id varchar(64) [not null]
+  session_id varchar(64)
+  platform_id varchar(64)
+  device_id varchar(64)
+
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  content_id varchar(64)
+  assessment_id varchar(64)
+  item_id varchar(64)
+  skill_id varchar(64)
+  standard_id varchar(64)
+
+  experiment_key varchar(128) [not null]
+  variant_key varchar(128) [not null]
+  is_control boolean
+
+  randomization_unit varchar(64) [note: 'person/session/section']
+  policy_version varchar(64)
+  metadata text
+  source_payload text
+
+  Note: 'Connects learners to experimental conditions; needed for causal analytics and adaptive audits.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: AI INTERACTIONS (Copilot / Tutor Telemetry)
+///////////////////////////////////////////////////////
+
+Table fact_ai_interaction {
+  ai_interaction_id varchar(64) [pk]
+  interaction_timestamp_utc timestamp [not null]
+  date_id int [not null]
+  time_of_day_id int
+
+  ai_tool_id varchar(64) [not null]
+  platform_id varchar(64)
+  session_id varchar(64)
+  device_id varchar(64)
+
+  // Participants (either can be null depending on scenario)
+  person_id varchar(64) [note: 'Primary human participant']
+  counterpart_person_id varchar(64) [note: 'Optional second human participant (teacher+learner)']
+  interaction_role varchar(64) [note: 'user/system/assistant']
+
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  content_id varchar(64)
+  assessment_id varchar(64)
+  item_id varchar(64)
+  skill_id varchar(64)
+  standard_id varchar(64)
+
+  input_tokens int
+  output_tokens int
+  latency_ms int
+  feedback_rating float
+  feedback_label varchar(64)
+  safety_flags text [note: 'JSON safety classifiers/labels']
+  transcript_snippet text [note: 'Short snippet or anonymized summary; avoid full transcripts if sensitive']
+  metadata text
+  source_payload text [note: 'JSON for traces, tool calls, chain metadata']
+
+  Note: 'AI usage telemetry for quality, cost, and pedagogy impact analysis.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: SESSION SUMMARIES (Aggregates)
+///////////////////////////////////////////////////////
+
+Table fact_session_summary {
+  session_summary_id varchar(64) [pk]
+  session_id varchar(64) [not null]
+  person_id varchar(64)
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  session_start_utc timestamp
+  session_end_utc timestamp
+  date_id int
+  time_of_day_id int
+
+  total_events int
+  active_seconds int
+  idle_seconds int
+  items_attempted int
+  items_mastered int
+  hints_requested int
+  ai_interactions int
+  signals_generated int
+
+  metadata text
+  source_payload text
+
+  Note: 'Session-level aggregates for BI dashboards and cohort trends.'
+}
+
+///////////////////////////////////////////////////////
+// FACTS: LTI / Launches (Context + Diagnostics)
+///////////////////////////////////////////////////////
+
+Table fact_launch {
+  launch_id varchar(64) [pk, note: 'Stable id for launch event (LTI/cmi5/custom)']
+  source_system varchar(64)
+  launch_timestamp_utc timestamp [not null]
+  date_id int [not null]
+  time_of_day_id int
+
+  platform_id varchar(64)
+  lti_tool_id varchar(64)
+  session_id varchar(64)
+  registration_id varchar(128) [note: 'xAPI/cmi5 registration if available']
+
+  person_id varchar(64)
+  organization_id varchar(64)
+  term_id varchar(64)
+  course_id varchar(64)
+  section_id varchar(64)
+  membership_id varchar(64)
+
+  launch_type varchar(64) [note: 'LTI_1_3, cmi5, deep_link, direct']
+  launch_context text [note: 'JSON: claims/params']
+  metadata text
+  source_payload text
+
+  Note: 'Launch events used to connect context across standards and debugging adoption funnels.'
+}
+
+///////////////////////////////////////////////////////
+// RELATIONSHIPS
+///////////////////////////////////////////////////////
+
+// Organization hierarchy
+Ref: dim_organization.parent_organization_id > dim_organization.organization_id
+
+// Person home org
+Ref: dim_person.home_organization_id > dim_organization.organization_id
+
+// Terms
+Ref: dim_academic_term.organization_id > dim_organization.organization_id
+
+// Courses/Sections
+Ref: dim_course.organization_id > dim_organization.organization_id
+Ref: dim_section.organization_id > dim_organization.organization_id
+Ref: dim_section.course_id > dim_course.course_id
+Ref: dim_section.term_id > dim_academic_term.term_id
+
+// Platforms/tools
+Ref: dim_lti_tool.platform_id > dim_platform.platform_id
+
+// Sessions
+Ref: dim_session.platform_id > dim_platform.platform_id
+Ref: dim_session.lti_tool_id > dim_lti_tool.lti_tool_id
+Ref: dim_session.term_id > dim_academic_term.term_id
+Ref: dim_session.organization_id > dim_organization.organization_id
+Ref: dim_session.course_id > dim_course.course_id
+Ref: dim_session.section_id > dim_section.section_id
+Ref: dim_session.person_id > dim_person.person_id
+Ref: dim_session.device_id > dim_device.device_id
+
+// Content / assessment
+Ref: dim_content.owner_organization_id > dim_organization.organization_id
+Ref: dim_content.course_id > dim_course.course_id
+Ref: dim_content.section_id > dim_section.section_id
+
+Ref: dim_assessment.organization_id > dim_organization.organization_id
+Ref: dim_assessment.course_id > dim_course.course_id
+Ref: dim_assessment.section_id > dim_section.section_id
+Ref: dim_assessment.term_id > dim_academic_term.term_id
+Ref: dim_assessment.content_id > dim_content.content_id
+
+Ref: dim_assessment_item.assessment_id > dim_assessment.assessment_id
+Ref: dim_assessment_item.content_id > dim_content.content_id
+
+// Standards/skills
+Ref: dim_standard.parent_standard_id > dim_standard.standard_id
+Ref: dim_skill.parent_skill_id > dim_skill.skill_id
+
+// Refs
+Ref: bridge_section_membership.role_key > ref_membership_role.role_key
+
+Ref: fact_learning_event.date_id > dim_date.date_id
+Ref: fact_learning_event.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_learning_event.event_type_key > ref_event_type.event_type_key
+Ref: fact_learning_event.verb_id > ref_verb.verb_id
+Ref: fact_learning_event.object_type_key > ref_object_type.object_type_key
+Ref: fact_learning_event.target_type_key > ref_object_type.object_type_key
+Ref: fact_learning_event.generated_type_key > ref_object_type.object_type_key
+
+Ref: fact_learning_event.person_id > dim_person.person_id
+Ref: fact_learning_event.impersonated_person_id > dim_person.person_id
+Ref: fact_learning_event.session_id > dim_session.session_id
+Ref: fact_learning_event.platform_id > dim_platform.platform_id
+Ref: fact_learning_event.lti_tool_id > dim_lti_tool.lti_tool_id
+Ref: fact_learning_event.ai_tool_id > dim_ai_tool.ai_tool_id
+Ref: fact_learning_event.device_id > dim_device.device_id
+Ref: fact_learning_event.organization_id > dim_organization.organization_id
+Ref: fact_learning_event.term_id > dim_academic_term.term_id
+Ref: fact_learning_event.course_id > dim_course.course_id
+Ref: fact_learning_event.section_id > dim_section.section_id
+Ref: fact_learning_event.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_learning_event.content_id > dim_content.content_id
+Ref: fact_learning_event.assessment_id > dim_assessment.assessment_id
+Ref: fact_learning_event.item_id > dim_assessment_item.item_id
+Ref: fact_learning_event.skill_id > dim_skill.skill_id
+Ref: fact_learning_event.standard_id > dim_standard.standard_id
+
+Ref: fact_assessment_attempt.date_id > dim_date.date_id
+Ref: fact_assessment_attempt.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_assessment_attempt.person_id > dim_person.person_id
+Ref: fact_assessment_attempt.session_id > dim_session.session_id
+Ref: fact_assessment_attempt.platform_id > dim_platform.platform_id
+Ref: fact_assessment_attempt.device_id > dim_device.device_id
+Ref: fact_assessment_attempt.organization_id > dim_organization.organization_id
+Ref: fact_assessment_attempt.term_id > dim_academic_term.term_id
+Ref: fact_assessment_attempt.course_id > dim_course.course_id
+Ref: fact_assessment_attempt.section_id > dim_section.section_id
+Ref: fact_assessment_attempt.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_assessment_attempt.assessment_id > dim_assessment.assessment_id
+Ref: fact_assessment_attempt.content_id > dim_content.content_id
+
+Ref: fact_item_response.date_id > dim_date.date_id
+Ref: fact_item_response.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_item_response.assessment_attempt_id > fact_assessment_attempt.assessment_attempt_id
+Ref: fact_item_response.person_id > dim_person.person_id
+Ref: fact_item_response.session_id > dim_session.session_id
+Ref: fact_item_response.organization_id > dim_organization.organization_id
+Ref: fact_item_response.term_id > dim_academic_term.term_id
+Ref: fact_item_response.course_id > dim_course.course_id
+Ref: fact_item_response.section_id > dim_section.section_id
+Ref: fact_item_response.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_item_response.assessment_id > dim_assessment.assessment_id
+Ref: fact_item_response.item_id > dim_assessment_item.item_id
+Ref: fact_item_response.content_id > dim_content.content_id
+Ref: fact_item_response.skill_id > dim_skill.skill_id
+Ref: fact_item_response.standard_id > dim_standard.standard_id
+
+Ref: fact_learning_signal.date_id > dim_date.date_id
+Ref: fact_learning_signal.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_learning_signal.signal_type_key > ref_signal_type.signal_type_key
+Ref: fact_learning_signal.person_id > dim_person.person_id
+Ref: fact_learning_signal.organization_id > dim_organization.organization_id
+Ref: fact_learning_signal.term_id > dim_academic_term.term_id
+Ref: fact_learning_signal.course_id > dim_course.course_id
+Ref: fact_learning_signal.section_id > dim_section.section_id
+Ref: fact_learning_signal.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_learning_signal.session_id > dim_session.session_id
+Ref: fact_learning_signal.content_id > dim_content.content_id
+Ref: fact_learning_signal.assessment_id > dim_assessment.assessment_id
+Ref: fact_learning_signal.item_id > dim_assessment_item.item_id
+Ref: fact_learning_signal.skill_id > dim_skill.skill_id
+Ref: fact_learning_signal.standard_id > dim_standard.standard_id
+
+Ref: fact_variant_exposure.date_id > dim_date.date_id
+Ref: fact_variant_exposure.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_variant_exposure.person_id > dim_person.person_id
+Ref: fact_variant_exposure.session_id > dim_session.session_id
+Ref: fact_variant_exposure.platform_id > dim_platform.platform_id
+Ref: fact_variant_exposure.device_id > dim_device.device_id
+Ref: fact_variant_exposure.organization_id > dim_organization.organization_id
+Ref: fact_variant_exposure.term_id > dim_academic_term.term_id
+Ref: fact_variant_exposure.course_id > dim_course.course_id
+Ref: fact_variant_exposure.section_id > dim_section.section_id
+Ref: fact_variant_exposure.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_variant_exposure.content_id > dim_content.content_id
+Ref: fact_variant_exposure.assessment_id > dim_assessment.assessment_id
+Ref: fact_variant_exposure.item_id > dim_assessment_item.item_id
+Ref: fact_variant_exposure.skill_id > dim_skill.skill_id
+Ref: fact_variant_exposure.standard_id > dim_standard.standard_id
+
+Ref: fact_ai_interaction.date_id > dim_date.date_id
+Ref: fact_ai_interaction.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_ai_interaction.ai_tool_id > dim_ai_tool.ai_tool_id
+Ref: fact_ai_interaction.platform_id > dim_platform.platform_id
+Ref: fact_ai_interaction.session_id > dim_session.session_id
+Ref: fact_ai_interaction.device_id > dim_device.device_id
+Ref: fact_ai_interaction.person_id > dim_person.person_id
+Ref: fact_ai_interaction.counterpart_person_id > dim_person.person_id
+Ref: fact_ai_interaction.organization_id > dim_organization.organization_id
+Ref: fact_ai_interaction.term_id > dim_academic_term.term_id
+Ref: fact_ai_interaction.course_id > dim_course.course_id
+Ref: fact_ai_interaction.section_id > dim_section.section_id
+Ref: fact_ai_interaction.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_ai_interaction.content_id > dim_content.content_id
+Ref: fact_ai_interaction.assessment_id > dim_assessment.assessment_id
+Ref: fact_ai_interaction.item_id > dim_assessment_item.item_id
+Ref: fact_ai_interaction.skill_id > dim_skill.skill_id
+Ref: fact_ai_interaction.standard_id > dim_standard.standard_id
+
+Ref: fact_session_summary.session_id > dim_session.session_id
+Ref: fact_session_summary.person_id > dim_person.person_id
+Ref: fact_session_summary.organization_id > dim_organization.organization_id
+Ref: fact_session_summary.term_id > dim_academic_term.term_id
+Ref: fact_session_summary.course_id > dim_course.course_id
+Ref: fact_session_summary.section_id > dim_section.section_id
+Ref: fact_session_summary.membership_id > bridge_section_membership.section_membership_id
+Ref: fact_session_summary.date_id > dim_date.date_id
+Ref: fact_session_summary.time_of_day_id > dim_time_of_day.time_of_day_id
+
+Ref: fact_launch.date_id > dim_date.date_id
+Ref: fact_launch.time_of_day_id > dim_time_of_day.time_of_day_id
+Ref: fact_launch.platform_id > dim_platform.platform_id
+Ref: fact_launch.lti_tool_id > dim_lti_tool.lti_tool_id
+Ref: fact_launch.session_id > dim_session.session_id
+Ref: fact_launch.person_id > dim_person.person_id
+Ref: fact_launch.organization_id > dim_organization.organization_id
+Ref: fact_launch.term_id > dim_academic_term.term_id
+Ref: fact_launch.course_id > dim_course.course_id
+Ref: fact_launch.section_id > dim_section.section_id
+Ref: fact_launch.membership_id > bridge_section_membership.section_membership_id
+
+// Bridges
+Ref: bridge_section_membership.section_id > dim_section.section_id
+Ref: bridge_section_membership.person_id > dim_person.person_id
+
+Ref: bridge_course_membership.course_id > dim_course.course_id
+Ref: bridge_course_membership.person_id > dim_person.person_id
+
+Ref: bridge_content_skill_map.content_id > dim_content.content_id
+Ref: bridge_content_skill_map.skill_id > dim_skill.skill_id
+
+Ref: bridge_item_skill_map.item_id > dim_assessment_item.item_id
+Ref: bridge_item_skill_map.skill_id > dim_skill.skill_id
+
+Ref: bridge_skill_standard_map.skill_id > dim_skill.skill_id
+Ref: bridge_skill_standard_map.standard_id > dim_standard.standard_id
+
+Ref: bridge_assessment_item_map.assessment_id > dim_assessment.assessment_id
+Ref: bridge_assessment_item_map.item_id > dim_assessment_item.item_id

@@ -1,11 +1,15 @@
 {{ config(materialized='table') }}
 
+-- Transform LTI tools from xAPI statements (via staging)
+-- Extract unique LTI tools from lrs_statements
 select
-  cast(lti_tool_id as string) as lti_tool_id,
-  cast(platform_id as string) as platform_id,
-  cast(issuer as string) as issuer,
-  cast(client_id as string) as client_id,
-  cast(name as string) as name,
-  cast(deployment_id as string) as deployment_id,
-  metadata
-from {{ source('raw_mongo', 'dim_lti_tool') }}
+  cast(ltiToolId as string) as lti_tool_id,
+  cast(platformId as string) as platform_id,
+  cast(null as string) as issuer,  -- Not directly available in xAPI
+  cast(null as string) as client_id,  -- Not directly available in xAPI
+  cast(null as string) as name,  -- Not directly available in xAPI
+  cast(null as string) as deployment_id,  -- Not directly available in xAPI
+  cast(metadata as string) as metadata
+from {{ ref('stg_lrs_events') }}
+where ltiToolId is not null
+group by ltiToolId, platformId, metadata

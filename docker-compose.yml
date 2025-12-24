@@ -1,0 +1,184 @@
+services:
+  # PostgreSQL database for Dagster run storage, schedule storage, and event log storage
+  dagster_postgresql:
+    image: postgres:15
+    container_name: dagster_postgresql
+    environment:
+      POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-postgres_user}
+      POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-postgres_password}
+      POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-postgres_db}
+    networks:
+      - dagster_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DAGSTER_POSTGRES_USER:-postgres_user} -d ${DAGSTER_POSTGRES_DB:-postgres_db}']
+      interval: 10s
+      timeout: 8s
+      retries: 5
+    volumes:
+      - dagster_postgres_data:/var/lib/postgresql/data
+
+  # User code server - runs the gRPC server that loads your user code
+  # This same image is used when launching runs in a new container
+  dagster_user_code:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_user_code
+    container_name: dagster_user_code
+    image: dagster_user_code_image
+    restart: always
+    environment:
+      # Dagster PostgreSQL connection
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-postgres_user}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-postgres_password}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-postgres_db}
+      DAGSTER_POSTGRES_HOST: dagster_postgresql
+      DAGSTER_POSTGRES_PORT: 5432
+      DAGSTER_CURRENT_IMAGE: dagster_user_code_image
+      
+      # MongoDB connection
+      MONGO_URI: ${MONGO_URI:-}
+      
+      # BigQuery configuration
+      GCP_PROJECT: ${GCP_PROJECT:-}
+      # Credentials file is mounted to /tmp/gcp_credentials.json in container
+      # The environment variable should point to the container path, not the host path
+      # Always use container path for credentials (mounted from host)
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_credentials.json
+      BQ_LOCATION: ${BQ_LOCATION:-me-west1}
+      BQ_DATASET_PREFIX: ${BQ_DATASET_PREFIX:-}
+      
+      # xAPI LRS configuration
+      XAPI_LRS_ENDPOINT: ${XAPI_LRS_ENDPOINT:-}
+      XAPI_AUTH_TOKEN: ${XAPI_AUTH_TOKEN:-}
+      
+      # dbt configuration
+      DBT_PROFILES_DIR: /app/dbt
+      DBT_TARGET: ${DBT_TARGET:-dev}
+      
+      # Python path
+      PYTHONPATH: /app/lineage/src
+    networks:
+      - dagster_network
+    volumes:
+      # Mount GCP credentials file from host to container
+      # GOOGLE_APPLICATION_CREDENTIALS in .env contains the host path
+      # We mount it to /tmp/gcp_credentials.json in the container
+      # Also store the host path in GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH for dagster.yaml
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/tmp/gcp_credentials.json:ro
+
+  # Dagster webserver - loads user code from the user code container
+  dagster_webserver:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_dagster
+    entrypoint:
+      - /opt/dagster/dagster_home/dagster_entrypoint.sh
+    command:
+      - dagster-webserver
+      - -h
+      - '0.0.0.0'
+      - -p
+      - '3500'
+      - -w
+      - workspace.yaml
+    container_name: dagster_webserver
+    expose:
+      - '3500'
+    ports:
+      - '3500:3500'
+    environment:
+      # Dagster PostgreSQL connection
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-postgres_user}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-postgres_password}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-postgres_db}
+      DAGSTER_POSTGRES_HOST: dagster_postgresql
+      DAGSTER_POSTGRES_PORT: 5432
+      
+      # Environment variables to pass through to run containers
+      # These are required by dagster.yaml's run_launcher.env_vars
+      MONGO_URI: ${MONGO_URI:-}
+      GCP_PROJECT: ${GCP_PROJECT:-}
+      # Always use container path for credentials (mounted from host)
+      # Don't use .env value - it's a host path, not a container path
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_credentials.json
+      # Store the host path separately for volume mounts in dagster.yaml
+      GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH: ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}
+      BQ_LOCATION: ${BQ_LOCATION:-me-west1}
+      BQ_DATASET_PREFIX: ${BQ_DATASET_PREFIX:-}
+      XAPI_LRS_ENDPOINT: ${XAPI_LRS_ENDPOINT:-}
+      XAPI_AUTH_TOKEN: ${XAPI_AUTH_TOKEN:-}
+      DBT_PROFILES_DIR: /app/dbt
+      DBT_TARGET: ${DBT_TARGET:-dev}
+      PYTHONPATH: /app/lineage/src
+    volumes:
+      # Make docker client accessible so we can terminate containers from the webserver
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Shared storage for IO manager
+      - dagster_io_storage:/tmp/io_manager_storage
+    networks:
+      - dagster_network
+    depends_on:
+      dagster_postgresql:
+        condition: service_healthy
+      dagster_user_code:
+        condition: service_healthy
+
+  # Dagster daemon - responsible for taking runs off the queue and launching them,
+  # as well as creating runs from schedules or sensors
+  dagster_daemon:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_dagster
+    entrypoint:
+      - /opt/dagster/dagster_home/dagster_entrypoint.sh
+    command:
+      - dagster-daemon
+      - run
+    container_name: dagster_daemon
+    restart: on-failure
+    environment:
+      # Dagster PostgreSQL connection
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-postgres_user}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-postgres_password}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-postgres_db}
+      DAGSTER_POSTGRES_HOST: dagster_postgresql
+      DAGSTER_POSTGRES_PORT: 5432
+      
+      # Environment variables to pass through to run containers
+      # These are required by dagster.yaml's run_launcher.env_vars
+      MONGO_URI: ${MONGO_URI:-}
+      GCP_PROJECT: ${GCP_PROJECT:-}
+      # Always use container path for credentials (mounted from host)
+      # Don't use .env value - it's a host path, not a container path
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_credentials.json
+      # Store the host path separately for volume mounts in dagster.yaml
+      GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH: ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}
+      BQ_LOCATION: ${BQ_LOCATION:-me-west1}
+      BQ_DATASET_PREFIX: ${BQ_DATASET_PREFIX:-}
+      XAPI_LRS_ENDPOINT: ${XAPI_LRS_ENDPOINT:-}
+      XAPI_AUTH_TOKEN: ${XAPI_AUTH_TOKEN:-}
+      DBT_PROFILES_DIR: /app/dbt
+      DBT_TARGET: ${DBT_TARGET:-dev}
+      PYTHONPATH: /app/lineage/src
+    volumes:
+      # Make docker client accessible so we can launch containers using host docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Shared storage for IO manager
+      - dagster_io_storage:/tmp/io_manager_storage
+    networks:
+      - dagster_network
+    depends_on:
+      dagster_postgresql:
+        condition: service_healthy
+      dagster_user_code:
+        condition: service_started
+
+networks:
+  dagster_network:
+    driver: bridge
+    name: dagster_network
+
+volumes:
+  dagster_postgres_data:
+  dagster_io_storage:
+

@@ -1,0 +1,55 @@
+[project]
+name = "lineage"
+requires-python = ">=3.10,<3.14"
+version = "0.1.0"
+dependencies = [
+    "dagster>=1.12.6",
+    "dagster-webserver>=1.12.6",
+    "dagster-dg-cli>=1.12.6",
+    "dagster-dbt>=0.25.0",
+    "dagster-dlt>=0.5.0",
+    "dagster-postgres>=0.28.0",  # Required for PostgreSQL storage backend (used in dagster.yaml)
+    "dlt[bigquery]>=1.20.0",
+    "dbt-bigquery>=1.10.0",
+    "dbt-core>=1.10.15",
+    "pymongo>=4.15.5",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0.1",
+    "dagster[mcp]>=1.12.6",
+    "mcp>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "duckdb>=1.0.0",
+    "dbt-duckdb>=1.10.0",
+    "uv>=0.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+force-include = { "pyproject.toml" = "pyproject.toml" }
+packages = ["src/lineage"]
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "lineage"
+registry_modules = [
+  "lineage.components.*",
+  "lineage.lib.*",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+ignore = ["E501"]  # Ignore line too long - docstrings often need to be longer
+
+

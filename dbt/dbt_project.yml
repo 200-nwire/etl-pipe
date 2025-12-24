@@ -13,11 +13,17 @@ models:
   etl_silver:
     +materialized: view
     staging:
-      +schema: staging
+      # Use prefix system: prefix_staging (e.g., "dev_staging" if prefix="dev_")
+      +schema: "{{ env_var('BQ_DATASET_PREFIX', '') }}staging"
       +materialized: view
+      # Map staging schema to BigQuery dataset
+      # dbt will create views in the prefixed 'staging' dataset
     silver:
-      +schema: silver
+      # Use prefix system: prefix_silver (e.g., "dev_silver" if prefix="dev_")
+      +schema: "{{ env_var('BQ_DATASET_PREFIX', '') }}silver"
       +materialized: table
+      # Map silver schema to BigQuery dataset with prefix
+      # dbt will create tables in the prefixed 'silver' dataset
 
 seeds:
   +schema: seeds

@@ -14,3 +14,9 @@ logs/
 .eggs-info/
 *.egg-info/
 .venv/
+venv/
+# Dagster temporary home directories (created when DAGSTER_HOME is not set)
+.tmp_dagster_home_*/
+tmp*/
+# Dagster persistent home (set DAGSTER_HOME=$PWD/.dagster_home to use)
+.dagster_home/

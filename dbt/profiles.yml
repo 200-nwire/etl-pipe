@@ -5,13 +5,18 @@ etl_silver:
       type: bigquery
       method: service-account
       project: "{{ env_var('GCP_PROJECT') }}"
-      dataset: "{{ env_var('GCP_BQ_DATASET', 'raw') }}"
-      threads: 8
+      # Use prefix system: prefix_raw, prefix_staging, prefix_silver
+      # Prefix is applied in dbt_project.yml via schema configuration
+      # Raw sources use: {{ env_var('BQ_DATASET_PREFIX', '') }}raw
+      # Staging uses: {{ env_var('BQ_DATASET_PREFIX', '') }}staging  
+      # Silver uses: {{ env_var('BQ_DATASET_PREFIX', '') }}silver
+      # NOTE: dataset field is a fallback - dbt uses schemas from dbt_project.yml
+      # Set to default "raw" (dbt will use schemas from dbt_project.yml which override this)
+      dataset: "{{ env_var('BQ_DATASET_PREFIX', '') }}raw"
+      threads: 8  # Run dbt models in parallel (8 concurrent models)
       keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
       timeout_seconds: 300
-      location: US
-    duckdb:
-      type: duckdb
-      path: "{{ env_var('DUCKDB_DATABASE', '/tmp/duckdb.db') }}"
-      schema: "{{ env_var('DBT_DUCKDB_SCHEMA', 'raw') }}"
-      threads: 4
+      location: "{{ env_var('BQ_LOCATION', 'me-west1') }}"  # Default to Tel Aviv region (europe-west1), configurable via BQ_LOCATION
+      # Schema mapping: dbt schema -> BigQuery dataset
+      # This allows staging models to write to 'staging' dataset and silver to 'silver'
+      # Note: dbt will use the schema from dbt_project.yml, but we need to ensure datasets exist

@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Dagster
+.dagster/
+# Note: dagster.yaml and workspace.yaml are needed for Dockerfile_dagster, so don't exclude them
+
+# dlt
+# Note: .dlt/secrets.toml is generated dynamically, but we need the directory structure
+# The secrets.toml file will be created at runtime from GOOGLE_APPLICATION_CREDENTIALS
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docs
+docs/
+*.md
+
+# Tests
+tests/
+.pytest_cache/
+
+# CI
+.github/
+
+# Kubernetes
+k8s/
+
+# Environment
+.env
+.env.local
+

@@ -1,0 +1,10 @@
+type: lineage.lib.custom_dbt_component.CustomDbtProjectComponent
+
+attributes:
+  # dbt project is in the parent directory relative to lineage/
+  # lineage/ is the project root (contains pyproject.toml with [tool.dg])
+  # So ../dbt resolves to amit-etl/dbt
+  project: '{{ context.project_root }}/../dbt'
+  select: "resource_type:model"
+  exclude: "resource_type:test"
+

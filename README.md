@@ -4,8 +4,7 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
 
 ## Repository structure
 
-- `dagster_project/` – Dagster definitions and assets to orchestrate ingestion, transformations, and tests.
-- `pipelines/` – dlt pipeline definitions for MongoDB collections and xAPI LRS statements.
+- `lineage/` – Dagster project with all assets, sources, and orchestration (main project).
 - `dbt/` – dbt project implementing raw sources, staging views, and silver models aligned to the provided schema.
 - `.github/workflows/ci.yml` – CI pipeline for linting, Dagster asset checks, and dbt parsing/testing.
 - `docs/` – architecture, lineage, and operational documentation.
@@ -25,14 +24,24 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
    export XAPI_AUTH_TOKEN=...  # optional
    export DBT_PROFILES_DIR=$PWD/dbt
    ```
-3. Run Dagster locally:
+3. Set Dagster home (optional but recommended to avoid temp directories):
    ```bash
-   dagster dev -m dagster_project
+   export DAGSTER_HOME=$PWD/.dagster_home
    ```
-4. Trigger ingestion and transformations from Dagster UI or CLI:
+
+4. Run Dagster locally (using `dg` CLI - recommended):
    ```bash
-  dagster job execute -m dagster_project -j mongo_raw_ingestion
-  dagster job execute -m dagster_project -j xapi_raw_ingestion
+   cd lineage && dg dev --port 3500
+   ```
+   
+   Or using traditional CLI:
+   ```bash
+   cd lineage && dagster dev --port 3500
+   ```
+5. Trigger ingestion and transformations from Dagster UI or CLI:
+   ```bash
+  # Materialize assets via Dagster UI or:
+  dagster asset materialize -m lineage -s lineage.definitions -a raw__lms_users
   dbt run --project-dir dbt --profiles-dir dbt
   dbt test --project-dir dbt --profiles-dir dbt
   ```
@@ -44,9 +53,8 @@ Modern ELT reference stack that ingests MongoDB (Airbyte) and xAPI LRS data with
   `MONGO_PORT=27017`, and include TLS/write concern flags via
   `MONGO_PARAMETERS='?retryWrites=true&w=majority&tls=true'`. Provide username,
   password, and database via `MONGO_USER`, `MONGO_PASSWORD`, and `MONGO_DATABASE`.
-- If you prefer a single SRV URL, define `MONGO_CONNECTION_STRING` in your
-  environment or `pipelines/mongo.py` dlt configuration; the Dagster asset will
-  pass it through to the connector unchanged.
+- If you prefer a single SRV URL, define `MONGO_URI` in your environment;
+  the Dagster asset will pass it through to the connector unchanged.
 
 ### Local validation without BigQuery
 
@@ -75,3 +83,19 @@ For more on the testing approach (Dagster unit patterns, DuckDB E2E design, and 
 - dlt automatically tracks load package state; jobs are idempotent and resumable.
 
 Refer to `docs/architecture.md` and `docs/lineage.md` for detailed lineage diagrams, icons, and operational guidance.
+
+## AI Assistant Setup (MCP)
+
+To enable better AI assistance in Cursor or other MCP-compatible tools, set up MCP servers for Dagster, dbt, and dlt. This allows AI assistants to understand your project structure, execute commands, and generate code with proper context.
+
+**Quick Setup:**
+1. See `docs/MCP_SETUP.md` for complete instructions
+2. Install MCP dependencies: `pip install uv` (for dbt MCP)
+3. Configure Cursor: Copy `.cursor/mcp.json.example` to `.cursor/mcp.json` and customize paths
+4. Restart Cursor to enable MCP integration
+
+**Benefits:**
+- AI can understand your Dagster asset graph and dependencies
+- AI can query dbt models, lineage, and execute dbt commands
+- AI can help generate new assets/models with proper context
+- Better debugging and troubleshooting assistance
