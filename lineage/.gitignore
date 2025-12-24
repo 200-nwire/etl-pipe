@@ -14,7 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ - commented out because we need lineage.lib.custom_dbt_component
+# lib/
 lib64/
 parts/
 sdist/

@@ -244,27 +244,94 @@ def load_mongo_raw(
     # Configure BigQuery destination with credentials
     # dlt requires explicit credentials, not just GOOGLE_APPLICATION_CREDENTIALS env var
     # IMPORTANT: dlt's configuration resolution doesn't preserve credentials objects
-    # when recreating clients, so we need to set environment variables that dlt expects
+    # when recreating clients, so we need to write secrets.toml that dlt can read
     from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
     import json
-    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
-    if os.path.exists(creds_path):
-        # Load credentials from JSON file
+    from pathlib import Path
+    
+    # Robust credential path resolution:
+    # 1. Try container path first (works in Docker)
+    # 2. Try environment variable path (works locally)
+    # 3. Try default container path
+    container_path = "/tmp/gcp_credentials.json"
+    env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    
+    # Determine which path to use
+    if os.path.exists(container_path):
+        creds_path = container_path
+        print(f"✓ Using container path: {creds_path}")
+    elif env_path and os.path.exists(env_path):
+        creds_path = env_path
+        print(f"✓ Using environment variable path: {creds_path}")
+    elif env_path:
+        # Env var is set but file doesn't exist - might be a host path in container
+        # Try container path as fallback
+        if os.path.exists(container_path):
+            creds_path = container_path
+            print(f"⚠ Env var path {env_path} not found, using container path: {creds_path}")
+        else:
+            raise RuntimeError(
+                f"GCP credentials file not found. Tried:\n"
+                f"  - Container path: {container_path} (not found)\n"
+                f"  - Environment variable path: {env_path} (not found)\n"
+                f"Cannot proceed with BigQuery load."
+            )
+    else:
+        # No env var set, try container path
+        if os.path.exists(container_path):
+            creds_path = container_path
+            print(f"✓ No env var set, using container path: {creds_path}")
+        else:
+            raise RuntimeError(
+                f"GCP credentials file not found at {container_path}. "
+                f"Set GOOGLE_APPLICATION_CREDENTIALS environment variable or mount credentials file. "
+                f"Cannot proceed with BigQuery load."
+            )
+    
+    # Load credentials from JSON file
+    try:
         with open(creds_path, 'r') as f:
             creds_data = json.load(f)
         
+        # Validate required fields
+        required_fields = ["project_id", "private_key", "client_email"]
+        missing_fields = [f for f in required_fields if not creds_data.get(f)]
+        if missing_fields:
+            raise ValueError(f"Missing required fields in credentials: {missing_fields}")
+        
+        print(f"✓ Loaded credentials: project_id={creds_data.get('project_id')}, client_email={creds_data.get('client_email')}")
+        
         # Create/update .dlt/secrets.toml from JSON file
         # This ensures dlt can read credentials when recreating destination clients
-        from pathlib import Path
-        dlt_secrets_dir = Path(__file__).parent.parent.parent / ".dlt"
+        # dlt looks for .dlt/secrets.toml relative to the current working directory or project root
+        # In Docker, working directory is /app/lineage, so we need /app/lineage/.dlt/secrets.toml
+        # Use current working directory (usually /app/lineage in Docker) or fallback to project root
+        cwd = Path(os.getcwd())
+        # If we're in /app/lineage/src, go up one level; otherwise use cwd
+        if cwd.name == "src" and (cwd / "lineage").exists():
+            dlt_secrets_dir = cwd.parent / ".dlt"
+        else:
+            dlt_secrets_dir = cwd / ".dlt"
         dlt_secrets_dir.mkdir(exist_ok=True)
         secrets_file = dlt_secrets_dir / "secrets.toml"
+        print(f"✓ Writing secrets.toml to: {secrets_file} (absolute: {secrets_file.resolve()})")
         
         # Write secrets.toml with credentials from JSON
-        # Escape private key for TOML (escape quotes)
-        private_key_escaped = creds_data.get("private_key", "").replace('"', '\\"')
+        # TOML triple-quoted strings (""") preserve everything literally, so no escaping needed
+        # However, if the private key contains triple quotes, we need to handle that
+        private_key = creds_data.get("private_key", "")
         project_id = creds_data.get("project_id", "")
         client_email = creds_data.get("client_email", "")
+        
+        # Check if private key contains triple quotes (unlikely but possible)
+        # If it does, we'll need to use a different approach
+        if '"""' in private_key:
+            # Use regular quoted string with escaping if triple quotes are present
+            private_key_escaped = private_key.replace("\\", "\\\\").replace('"', '\\"')
+            private_key_toml = f'"{private_key_escaped}"'
+        else:
+            # Use triple-quoted string for literal preservation (no escaping needed)
+            private_key_toml = f'"""{private_key}"""'
         
         # dlt looks for credentials in multiple places:
         # 1. Pipeline-specific: lms_raw.destination.bigquery.credentials.*
@@ -282,7 +349,7 @@ location = "{location}"
 [destination.bigquery.credentials]
 project_id = "{project_id}"
 client_email = "{client_email}"
-private_key = """{private_key_escaped}"""
+private_key = {private_key_toml}
 
 # Pipeline-specific configuration (lms_raw pipeline)
 [lms_raw.destination.bigquery]
@@ -291,9 +358,41 @@ location = "{location}"
 [lms_raw.destination.bigquery.credentials]
 project_id = "{project_id}"
 client_email = "{client_email}"
-private_key = """{private_key_escaped}"""
+private_key = {private_key_toml}
 '''
         secrets_file.write_text(secrets_content)
+        print(f"✓ Updated secrets.toml at {secrets_file}")
+        print(f"   File size: {secrets_file.stat().st_size} bytes")
+        
+        # Verify the file was written correctly
+        if secrets_file.stat().st_size < 100:
+            raise RuntimeError(f"secrets.toml file is too small ({secrets_file.stat().st_size} bytes). Credentials may not have been written correctly.")
+        
+        # Verify we can read it back and parse it
+        try:
+            import tomli
+            with open(secrets_file, 'rb') as f:
+                parsed = tomli.load(f)
+            # Check that credentials are present
+            if 'destination' not in parsed or 'bigquery' not in parsed.get('destination', {}):
+                raise RuntimeError("secrets.toml missing [destination.bigquery] section")
+            if 'credentials' not in parsed.get('destination', {}).get('bigquery', {}):
+                raise RuntimeError("secrets.toml missing [destination.bigquery.credentials] section")
+            creds = parsed.get('destination', {}).get('bigquery', {}).get('credentials', {})
+            if not all(k in creds for k in ['project_id', 'client_email', 'private_key']):
+                missing = [k for k in ['project_id', 'client_email', 'private_key'] if k not in creds]
+                raise RuntimeError(f"secrets.toml missing credential fields: {missing}")
+            print(f"✓ Verified secrets.toml is valid and contains all required credentials")
+        except ImportError:
+            # tomli not available, skip validation
+            print(f"⚠ Could not validate secrets.toml (tomli not available)")
+        except Exception as e:
+            print(f"✗ ERROR: secrets.toml validation failed: {e}")
+            # Print first 500 chars of the file for debugging
+            with open(secrets_file, 'r') as f:
+                content = f.read()
+                print(f"   File content (first 500 chars):\n{content[:500]}")
+            raise
         
         # Also create credentials object for direct use
         credentials = GcpServiceAccountCredentials(
@@ -302,9 +401,11 @@ private_key = """{private_key_escaped}"""
             client_email=creds_data.get("client_email"),
         )
         destination = bigquery(credentials=credentials, location=location)
-    else:
-        # Fallback: let dlt try to use ADC or other methods
-        destination = bigquery(location=location)
+    except Exception as e:
+        print(f"✗ ERROR: Could not load credentials or update secrets.toml: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     
     pipeline_args = {
         "pipeline_name": pipeline_name,
@@ -511,87 +612,6 @@ private_key = """{private_key_escaped}"""
         print(f"⚠️  WARNING: Extract did NOT create any pending packages!")
         print(f"     This means no data was extracted, so load() will have nothing to load")
         print(f"     Check if MongoDB collections are empty or if there are connection issues")
-    
-    # CRITICAL: Ensure secrets.toml exists RIGHT BEFORE pipeline.load()
-    # dlt recreates the destination client during load() and needs credentials
-    # We must ensure secrets.toml is up-to-date at this point
-    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp_credentials.json")
-    print(f"⚠ Checking credentials file: {creds_path}")
-    print(f"   File exists: {os.path.exists(creds_path)}")
-    
-    if not os.path.exists(creds_path):
-        raise RuntimeError(f"GCP credentials file not found at {creds_path}. Cannot proceed with BigQuery load.")
-    
-    try:
-        with open(creds_path, 'r') as f:
-            creds_data = json.load(f)
-        
-        # Validate required fields
-        required_fields = ["project_id", "private_key", "client_email"]
-        missing_fields = [f for f in required_fields if not creds_data.get(f)]
-        if missing_fields:
-            raise ValueError(f"Missing required fields in credentials: {missing_fields}")
-        
-        print(f"✓ Loaded credentials: project_id={creds_data.get('project_id')}, client_email={creds_data.get('client_email')}")
-        
-        # Create/update .dlt/secrets.toml from JSON file
-        # This ensures dlt can read credentials when recreating destination clients
-        from pathlib import Path
-        dlt_secrets_dir = Path(__file__).parent.parent.parent / ".dlt"
-        dlt_secrets_dir.mkdir(exist_ok=True)
-        secrets_file = dlt_secrets_dir / "secrets.toml"
-        
-        # Write secrets.toml with credentials from JSON
-        # Escape private key for TOML (escape quotes and backslashes)
-        private_key = creds_data.get("private_key", "")
-        # For TOML triple-quoted strings, we need to escape backslashes and quotes
-        private_key_escaped = private_key.replace("\\", "\\\\").replace('"', '\\"')
-        project_id = creds_data.get("project_id", "")
-        client_email = creds_data.get("client_email", "")
-        
-        # Get location from pipeline or environment
-        pipeline_location = location if 'location' in locals() else os.environ.get("BQ_LOCATION", "me-west1")
-        
-        # dlt looks for credentials in multiple places:
-        # 1. Pipeline-specific: lms_raw.destination.bigquery.credentials.*
-        # 2. Generic: destination.bigquery.credentials.*
-        # We include both to ensure credentials are found
-        secrets_content = f'''# dlt secrets configuration
-# Auto-generated from GOOGLE_APPLICATION_CREDENTIALS JSON file
-# This file is updated dynamically to ensure credentials are available
-# when dlt recreates destination clients during pipeline.load()
-
-# Generic destination configuration (used as fallback)
-[destination.bigquery]
-location = "{pipeline_location}"
-
-[destination.bigquery.credentials]
-project_id = "{project_id}"
-client_email = "{client_email}"
-private_key = """{private_key_escaped}"""
-
-# Pipeline-specific configuration (lms_raw pipeline)
-[lms_raw.destination.bigquery]
-location = "{pipeline_location}"
-
-[lms_raw.destination.bigquery.credentials]
-project_id = "{project_id}"
-client_email = "{client_email}"
-private_key = """{private_key_escaped}"""
-'''
-        secrets_file.write_text(secrets_content)
-        print(f"✓ Updated secrets.toml at {secrets_file}")
-        print(f"   File size: {secrets_file.stat().st_size} bytes")
-        
-        # Verify the file was written correctly
-        if secrets_file.stat().st_size < 100:
-            raise RuntimeError(f"secrets.toml file is too small ({secrets_file.stat().st_size} bytes). Credentials may not have been written correctly.")
-        
-    except Exception as e:
-        print(f"✗ ERROR: Could not update secrets.toml: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
     
     # Then load (will load the newly extracted data)
     # Since we dropped old pending packages before extract, load() will only see the new packages

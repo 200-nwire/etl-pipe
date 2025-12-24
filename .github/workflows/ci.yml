@@ -103,6 +103,8 @@ jobs:
           cd lineage
           pip install uv
           uv sync
+          # Ensure the package is installed so imports work
+          uv pip install -e .
       - name: Validate Dagster definitions
         run: |
           cd lineage

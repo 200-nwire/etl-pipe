@@ -42,6 +42,7 @@ services:
       GCP_PROJECT: ${GCP_PROJECT:-}
       # Credentials file is mounted to /tmp/gcp_credentials.json in container
       # The environment variable should point to the container path, not the host path
+      # Always use container path for credentials (mounted from host)
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_credentials.json
       BQ_LOCATION: ${BQ_LOCATION:-me-west1}
       BQ_DATASET_PREFIX: ${BQ_DATASET_PREFIX:-}
@@ -59,8 +60,10 @@ services:
     networks:
       - dagster_network
     volumes:
-      # Mount GCP credentials file if GOOGLE_APPLICATION_CREDENTIALS is set
-      # This allows the container to access the credentials file from the host
+      # Mount GCP credentials file from host to container
+      # GOOGLE_APPLICATION_CREDENTIALS in .env contains the host path
+      # We mount it to /tmp/gcp_credentials.json in the container
+      # Also store the host path in GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH for dagster.yaml
       - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/tmp/gcp_credentials.json:ro
 
   # Dagster webserver - loads user code from the user code container
@@ -93,7 +96,11 @@ services:
       # These are required by dagster.yaml's run_launcher.env_vars
       MONGO_URI: ${MONGO_URI:-}
       GCP_PROJECT: ${GCP_PROJECT:-}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/tmp/gcp_credentials.json}
+      # Always use container path for credentials (mounted from host)
+      # Don't use .env value - it's a host path, not a container path
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_credentials.json
+      # Store the host path separately for volume mounts in dagster.yaml
+      GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH: ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}
       BQ_LOCATION: ${BQ_LOCATION:-me-west1}
       BQ_DATASET_PREFIX: ${BQ_DATASET_PREFIX:-}
       XAPI_LRS_ENDPOINT: ${XAPI_LRS_ENDPOINT:-}
@@ -137,7 +144,11 @@ services:
       # These are required by dagster.yaml's run_launcher.env_vars
       MONGO_URI: ${MONGO_URI:-}
       GCP_PROJECT: ${GCP_PROJECT:-}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/tmp/gcp_credentials.json}
+      # Always use container path for credentials (mounted from host)
+      # Don't use .env value - it's a host path, not a container path
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_credentials.json
+      # Store the host path separately for volume mounts in dagster.yaml
+      GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH: ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}
       BQ_LOCATION: ${BQ_LOCATION:-me-west1}
       BQ_DATASET_PREFIX: ${BQ_DATASET_PREFIX:-}
       XAPI_LRS_ENDPOINT: ${XAPI_LRS_ENDPOINT:-}

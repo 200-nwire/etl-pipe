@@ -46,11 +46,11 @@ run_launcher:
       # Shared storage for IO manager
       volumes:
         - /tmp/io_manager_storage:/tmp/io_manager_storage
-        # Mount GCP credentials file for BigQuery access
-        # Note: This path must match the host path where credentials are stored
-        # The path is set via GOOGLE_APPLICATION_CREDENTIALS in .env or docker-compose
-        # Default: /Users/alexg/Downloads/amit-insights-f9551eb68b54.json
-        - /Users/alexg/Downloads/amit-insights-f9551eb68b54.json:/tmp/gcp_credentials.json:ro
+        # Mount GCP credentials file for BigQuery access in run containers
+        # Uses GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH from daemon environment (set in docker-compose.yml)
+        # Container path is always /tmp/gcp_credentials.json
+        # Note: dagster.yaml supports ${VAR} syntax for environment variable substitution
+        - ${GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH}:/tmp/gcp_credentials.json:ro
     # Network configuration - must match docker-compose network name
     # Note: 'network' cannot be in container_kwargs, use 'networks' instead
     networks:
