@@ -573,7 +573,7 @@ private_key = {private_key_toml}
                 if query:
                     print(f"    Query filter: {query}")
                 else:
-                    print(f"    Query filter: {} (loading all documents)")
+                    print("    Query filter: {} (loading all documents)")
                 
                 # Optimize cursor settings for performance
                 # - Larger batch size = fewer round trips (but more memory)
